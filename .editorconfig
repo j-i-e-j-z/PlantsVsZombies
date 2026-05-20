@@ -1,0 +1,7 @@
+﻿# 告诉 VS 这是工程的最顶层配置
+root = true
+
+# 针对所有文件类型
+[*]
+# 强制使用带有 BOM 的 UTF-8 编码保存文件
+charset = utf-8-bom
