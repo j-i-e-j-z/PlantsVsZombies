@@ -1,4 +1,5 @@
 ﻿#pragma once
+#pragma once
 #include <QtWidgets/QMainWindow>
 #include "ui_mainwindow.h"
 #include <QTimer>
@@ -6,17 +7,17 @@
 #include <QSoundEffect> // 播放wav音频的头文件
 #include <QGraphicsOpacityEffect> // 包含透明度特效和属性动画的头文件
 #include <QPropertyAnimation>
-#include <QPushButton> // 修复了之前的拼写大小写错误
-#include <QMouseEvent> // 【新增】用于处理鼠标点击事件
+#include <QPushButton>
+#include <QMouseEvent>
 
-class MainWindow : public QMainWindow
+class mainwindow : public QMainWindow // 纯小写
 {
     Q_OBJECT
-
 public:
-    MainWindow(QWidget* parent = nullptr);
-    ~MainWindow();
-
+    mainwindow(QWidget* parent = nullptr); // 纯小写
+    ~mainwindow(); // 纯小写
+    // ... 其他保持不变
+    void addSun(int amount);
 protected:
     // 重写父类的鼠标按下事件，用于捕获玩家在战斗草坪上的点击动作
     void mousePressEvent(QMouseEvent* event) override;

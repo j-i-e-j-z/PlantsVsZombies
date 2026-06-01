@@ -104,6 +104,7 @@
   <ItemGroup>
     <ClCompile Include="peashooter.cpp" />
     <ClCompile Include="plant.cpp" />
+    <ClCompile Include="sun.cpp" />
     <ClCompile Include="sunflower.cpp" />
     <QtRcc Include="mainwindow.qrc" />
     <QtUic Include="mainwindow.ui" />
@@ -118,6 +119,9 @@
     <QtMoc Include="peashooter.h" />
     <QtMoc Include="plant.h" />
     <QtMoc Include="sunflower.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="sun.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

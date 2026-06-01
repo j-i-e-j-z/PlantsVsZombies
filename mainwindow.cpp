@@ -9,10 +9,12 @@
 #include <QIcon>
 #include <QSize>
 #include <QCursor>
-#include "sunflower.h"  // 【关键修复】：必须加上这一行！告诉编译器向日葵长什么样
+#include "sunflower.h"
 #include "peashooter.h"
+#include <QRandomGenerator> // 用于生成随机降落坐标
+#include "sun.h"            // 把阳光的设计图拿给主窗口看
 
-MainWindow::MainWindow(QWidget* parent)
+mainwindow::mainwindow(QWidget* parent)
     : QMainWindow(parent), ui(new Ui::MainWindowClass), currentStage(0)
 {
     ui->setupUi(this);
@@ -78,7 +80,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     startButton->setStyleSheet(btnStyle);
     startButton->hide();
-    connect(startButton, &QPushButton::clicked, this, &MainWindow::startGame);
+    connect(startButton, &QPushButton::clicked, this, &mainwindow::startGame);
 
     // ---------------- 【构建主菜单界面】 ----------------
     menuBgLabel = new QLabel(this);
@@ -93,7 +95,7 @@ MainWindow::MainWindow(QWidget* parent)
         "QPushButton:hover { border-image: url(:/res/images/mx1.png); }"
     );
     btnAdventure->hide();
-    connect(btnAdventure, &QPushButton::clicked, this, &MainWindow::startAdventure);
+    connect(btnAdventure, &QPushButton::clicked, this, &mainwindow::startAdventure);
 
     btnMiniGames = new QPushButton(this);
     btnMiniGames->setGeometry(615, 270, 450, 150);
@@ -162,7 +164,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     // ---------------- 【核心交互：买前验资】 ----------------
     connect(sunCardBtn, &QPushButton::clicked, [this]() {
-        if (sunCount >= 50) { // 【验资】：有 50 阳光才能买向日葵！
+        if (sunCount >= 50) {
             qDebug() << "【商店系统】选中向日葵！";
             currentMouseState = HoldingSunflower;
             this->setCursor(QCursor(QPixmap(":/res/images/SunFlower.png").scaled(50, 50)));
@@ -173,7 +175,7 @@ MainWindow::MainWindow(QWidget* parent)
         });
 
     connect(peaCardBtn, &QPushButton::clicked, [this]() {
-        if (sunCount >= 100) { // 【验资】：有 100 阳光才能买豌豆射手！
+        if (sunCount >= 100) {
             qDebug() << "【商店系统】选中豌豆射手！";
             currentMouseState = HoldingPeashooter;
             this->setCursor(QCursor(QPixmap(":/res/images/Peashooter.png").scaled(50, 50)));
@@ -191,11 +193,11 @@ MainWindow::MainWindow(QWidget* parent)
     bgm->play();
 
     loadingTimer = new QTimer(this);
-    connect(loadingTimer, &QTimer::timeout, this, &MainWindow::nextLoadingStage);
-    QTimer::singleShot(500, this, &MainWindow::nextLoadingStage);
+    connect(loadingTimer, &QTimer::timeout, this, &mainwindow::nextLoadingStage);
+    QTimer::singleShot(500, this, &mainwindow::nextLoadingStage);
 }
 
-MainWindow::~MainWindow()
+mainwindow::~mainwindow()
 {
     delete ui;
 }
@@ -203,7 +205,7 @@ MainWindow::~MainWindow()
 // ====================================================================================
 // 核心状态机：开场动画
 // ====================================================================================
-void MainWindow::nextLoadingStage()
+void mainwindow::nextLoadingStage()
 {
     switch (currentStage) {
     case 0:
@@ -263,7 +265,7 @@ void MainWindow::nextLoadingStage()
 // ====================================================================================
 // UI 切换与底层核心逻辑
 // ====================================================================================
-void MainWindow::startGame()
+void mainwindow::startGame()
 {
     imageLabel->hide();
     floorLabel->hide();
@@ -281,7 +283,7 @@ void MainWindow::startGame()
     btnPlay->raise();
 }
 
-void MainWindow::startAdventure()
+void mainwindow::startAdventure()
 {
     menuBgLabel->hide();
     btnAdventure->hide();
@@ -294,11 +296,9 @@ void MainWindow::startAdventure()
         lawnMowers[i]->show();
     }
 
-    // 显示顶部商店
     shopBoard->show();
     shopBoard->raise();
 
-    // 【新增：显示阳光计分板】
     sunLabel->show();
     sunLabel->raise();
 
@@ -313,12 +313,35 @@ void MainWindow::startAdventure()
             grassGrid[i][j] = 0;
         }
     }
+
+    // ---------------------------------------------------------
+    // 【天气系统】：移至此处！真正进入草坪后，才开始天降阳光
+    // ---------------------------------------------------------
+    QTimer* skySunTimer = new QTimer(this);
+    connect(skySunTimer, &QTimer::timeout, [this]() {
+
+        // X 轴范围：避开左边房子，大概在 250 ~ 1000 像素之间
+        int randX = QRandomGenerator::global()->bounded(250, 1000);
+        // Y 轴范围：目标落点在草地上，大概在 200 ~ 750 像素之间
+        int targetY = QRandomGenerator::global()->bounded(200, 750);
+
+        Sun* skySun = new Sun(this);
+
+        skySun->startFall(randX, targetY);
+        skySun->show();
+        skySun->raise(); // 防止被草地遮挡
+
+        qDebug() << "【天气系统】天上掉下了一颗阳光！落点 Y:" << targetY;
+        });
+
+    // 每 8 秒触发一次掉落
+    skySunTimer->start(8000);
 }
 
 // ====================================================================================
 // 核心输入：重写鼠标点击事件，精准识别玩家点击的 5x9 草地网格坐标
 // ====================================================================================
-void MainWindow::mousePressEvent(QMouseEvent* event)
+void mainwindow::mousePressEvent(QMouseEvent* event)
 {
     if (!combatBgLabel->isVisible()) {
         return;
@@ -362,32 +385,26 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
                 int placeX = colEdges[col] + offsetX;
                 int placeY = startY + row * cellH + offsetY;
 
-                // ---------------------------------------------------------
-                // 【状态分发与扣款】：实例化植物并扣除对应的阳光
-                // ---------------------------------------------------------
                 if (currentMouseState == HoldingSunflower) {
                     Sunflower* sun = new Sunflower(row, col, this);
                     sun->move(placeX, placeY);
                     sun->show();
 
-                    sunCount -= 50; // 【核心经济逻辑】：扣款 50
+                    sunCount -= 50;
                 }
                 else if (currentMouseState == HoldingPeashooter) {
                     PeaShooter* pea = new PeaShooter(row, col, this);
                     pea->move(placeX, placeY);
                     pea->show();
 
-                    sunCount -= 100; // 【核心经济逻辑】：扣款 100
+                    sunCount -= 100;
                 }
 
-                // 锁定草地状态
                 grassGrid[row][col] = 1;
 
-                // 清空鼠标状态，恢复指针
                 currentMouseState = None;
                 this->unsetCursor();
 
-                // 【刷新计分板】：更新屏幕上的阳光数值
                 sunLabel->setText(QString::number(sunCount));
 
             }
@@ -398,5 +415,17 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
         else {
             qDebug() << "【核心层响应】无效点击：点击位置已超出可种植草坪范围！";
         }
+    }
+}
+
+// ====================================================================================
+// 经济系统：增加阳光余额并刷新 UI
+// ====================================================================================
+void mainwindow::addSun(int amount)
+{
+    sunCount += amount;
+
+    if (sunLabel) {
+        sunLabel->setText(QString::number(sunCount));
     }
 }
