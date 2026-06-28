@@ -58,6 +58,15 @@
     <ClCompile Include="sun.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="peabullet.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="zombie.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lawnmower.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="plant.h">
@@ -70,6 +79,15 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="sun.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="peabullet.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="zombie.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="lawnmower.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

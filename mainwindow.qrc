@@ -3,15 +3,11 @@
         <file>images/Background.jpg</file>
         <file>images/Background2.jpg</file>
         <file>images/Boom.gif</file>
-        <file>images/BucketZombieAttack.gif</file>
-        <file>images/BucketZombieWalk.gif</file>
         <file>images/Burn.gif</file>
         <file>images/Button.png</file>
         <file>images/Card.png</file>
         <file>images/CherryBomb.gif</file>
         <file>images/CherryBomb.png</file>
-        <file>images/ConeZombieAttack.gif</file>
-        <file>images/ConeZombieWalk.gif</file>
         <file>images/floor.png</file>
         <file>images/FootballZombieAttack.gif</file>
         <file>images/FootballZombieDie.gif</file>
@@ -19,7 +15,6 @@
         <file>images/images.qrc</file>
         <file>images/imges.qrc</file>
         <file>images/init.png</file>
-        <file>images/LawnMower.png</file>
         <file>images/LogoWord.jpg</file>
         <file>images/mainlogo.png</file>
         <file>images/mini.png</file>
@@ -27,20 +22,13 @@
         <file>images/mx.png</file>
         <file>images/mx1.png</file>
         <file>images/Pea.png</file>
-        <file>images/Peashooter.gif</file>
-        <file>images/Peashooter.png</file>
         <file>images/PeaSnow.png</file>
         <file>images/PlantsVsZombies.ico</file>
         <file>images/play.png</file>
         <file>images/play1.png</file>
-        <file>images/PotatoMine.gif</file>
         <file>images/PotatoMine.png</file>
-        <file>images/PotatoMine1.gif</file>
-        <file>images/PotatoMineBomb.gif</file>
         <file>images/Repeater.gif</file>
         <file>images/Repeater.png</file>
-        <file>images/ScreenZombieAttack.gif</file>
-        <file>images/ScreenZombieWalk.gif</file>
         <file>images/Shop.png</file>
         <file>images/Shovel.png</file>
         <file>images/ShovelBank.png</file>
@@ -48,8 +36,6 @@
         <file>images/SnowPea.png</file>
         <file>images/StartScreen.jpg</file>
         <file>images/Sun.gif</file>
-        <file>images/SunFlower.gif</file>
-        <file>images/SunFlower.png</file>
         <file>images/Surface.png</file>
         <file>images/Title.jpg</file>
         <file>images/WallNut.gif</file>
@@ -58,28 +44,78 @@
         <file>images/WallNut2.gif</file>
         <file>images/yizi.png</file>
         <file>images/yizi1.png</file>
-        <file>images/ZombieAttack.gif</file>
-        <file>images/ZombieDie.gif</file>
         <file>images/ZombieHead.gif</file>
         <file>images/ZombiesWon.png</file>
-        <file>images/ZombieWalk1.gif</file>
-        <file>images/ZombieWalk2.gif</file>
-        <file>sound/Boom.wav</file>
-        <file>sound/Eat.wav</file>
-        <file>sound/Fire.wav</file>
+        <file>sound/awooga.wav</file>
+        <file>sound/points.wav</file>
+        <file>sound/buzzer.wav</file>
+        <file>sound/throw2.wav</file>
+        <file>sound/throw.wav</file>
+        <file>sound/losemusic.wav</file>
+        <file>sound/chompsoft.wav</file>
+        <file>sound/chomp2.wav</file>
+        <file>sound/chomp.wav</file>
+        <file>sound/splat3.wav</file>
+        <file>sound/splat2.wav</file>
+        <file>sound/splat.wav</file>
+        <file>sound/Laura Shigihara - Choose Your Seeds IN-GAME.wav</file>
+        <file>sound/Daytime.wav</file>
         <file>sound/Grazy.wav</file>
-        <file>sound/Lose.wav</file>
-        <file>sound/Mush.wav</file>
-        <file>sound/NewsLost.wav</file>
-        <file>sound/NotEnoughSun.wav</file>
-        <file>sound/Pea.wav</file>
-        <file>sound/PeaHit.wav</file>
-        <file>sound/Place.wav</file>
-        <file>sound/Pole.wav</file>
-        <file>sound/Potato.wav</file>
-        <file>sound/ShieldHit.wav</file>
-        <file>sound/sound</file>
-        <file>sound/sound.qrc</file>
-        <file>sound/Sun.wav</file>
+        <file>sound/cherrybomb.wav</file>
+        <file>sound/potato_mine.wav</file>
+        <file>sound/dirt_rise.wav</file>
+        <file>sound/explosion.wav</file>
+        <file>sound/snow_pea_sparkles.wav</file>
+        <file>sound/frozen.wav</file>
+        <file>sound/gulp.wav</file>
+        <file>sound/plastichit2.wav</file>
+        <file>sound/plastichit.wav</file>
+        <file>sound/shieldhit2.wav</file>
+        <file>sound/shieldhit.wav</file>
+        <file>sound/lawnmower.wav</file>
+        <file>sound/loadingbar_flower.wav</file>
+        <file>sound/loadingbar_zombie.wav</file>
+        <file>sound/evillaugh.wav</file>
+        <file>sound/plantgrow.wav</file>
+        <file>sound/plantern.wav</file>
+        <file>sound/plant2.wav</file>
+        <file>sound/plant_water.wav</file>
+        <file>sound/plant.wav</file>
+        <file>sound/readysetplant.wav</file>
+        <file>sound/buttonclick.wav</file>
+        <file>sound/scream.wav</file>
+        <file>images/plant/SunFlower/SunFlower.gif</file>
+        <file>images/SunFlower.png</file>
+        <file>images/plant/PeaShooterSingle/full_idle.gif</file>
+        <file>images/plant/PeaShooterSingle/shooting.gif</file>
+        <file>images/Zombie/Zombie_normal/dance.gif</file>
+        <file>images/Zombie/Zombie_normal/death.gif</file>
+        <file>images/Zombie/Zombie_normal/death2.gif</file>
+        <file>images/Zombie/Zombie_normal/eat.gif</file>
+        <file>images/Zombie/Zombie_normal/idle.gif</file>
+        <file>images/Zombie/Zombie_normal/idle2.gif</file>
+        <file>images/Zombie/Zombie_normal/superlongdeath.gif</file>
+        <file>images/Zombie/Zombie_normal/walk.gif</file>
+        <file>images/Zombie/Zombie_normal/walk2.gif</file>
+        <file>images/Zombie/Zombie_buckethead/dance.gif</file>
+        <file>images/Zombie/Zombie_buckethead/eat.gif</file>
+        <file>images/Zombie/Zombie_buckethead/idle.gif</file>
+        <file>images/Zombie/Zombie_buckethead/idle2.gif</file>
+        <file>images/Zombie/Zombie_buckethead/walk.gif</file>
+        <file>images/Zombie/Zombie_buckethead/walk2.gif</file>
+        <file>images/Zombie/Zombie_flag/eat.gif</file>
+        <file>images/Zombie/Zombie_flag/idle.gif</file>
+        <file>images/Zombie/Zombie_flag/idle2.gif</file>
+        <file>images/Zombie/Zombie_flag/walk.gif</file>
+        <file>images/Zombie/Zombie_flag/walk2.gif</file>
+        <file>images/Zombie/Zombie_conehead/dance.gif</file>
+        <file>images/Zombie/Zombie_conehead/eat.gif</file>
+        <file>images/Zombie/Zombie_conehead/idle.gif</file>
+        <file>images/Zombie/Zombie_conehead/idle2.gif</file>
+        <file>images/Zombie/Zombie_conehead/walk.gif</file>
+        <file>images/Zombie/Zombie_conehead/walk2.gif</file>
+        <file>images/Peashooter.png</file>
+        <file>images/other/LawnMower/normal.gif</file>
+        <file>images/other/LawnMower/tricked.gif</file>
     </qresource>
 </RCC>

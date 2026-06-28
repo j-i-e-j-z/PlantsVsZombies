@@ -102,10 +102,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="lawnmower.cpp" />
+    <ClCompile Include="peabullet.cpp" />
     <ClCompile Include="peashooter.cpp" />
     <ClCompile Include="plant.cpp" />
     <ClCompile Include="sun.cpp" />
     <ClCompile Include="sunflower.cpp" />
+    <ClCompile Include="zombie.cpp" />
     <QtRcc Include="mainwindow.qrc" />
     <QtUic Include="mainwindow.ui" />
     <QtMoc Include="mainwindow.h" />
@@ -122,6 +125,15 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="sun.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="peabullet.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="zombie.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="lawnmower.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

@@ -1,78 +1,99 @@
 ﻿#pragma once
-#pragma once
 #include <QtWidgets/QMainWindow>
 #include "ui_mainwindow.h"
+
 #include <QTimer>
 #include <QLabel>
-#include <QSoundEffect> // 播放wav音频的头文件
-#include <QGraphicsOpacityEffect> // 包含透明度特效和属性动画的头文件
+#include <QSoundEffect>
+#include <QGraphicsOpacityEffect>
 #include <QPropertyAnimation>
 #include <QPushButton>
 #include <QMouseEvent>
 
-class mainwindow : public QMainWindow // 纯小写
+// 【新增】引入图形视图框架头文件
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QGraphicsPixmapItem>
+#include <QGraphicsObject>
+
+class LawnMower;
+
+class mainwindow : public QMainWindow
 {
     Q_OBJECT
 public:
-    mainwindow(QWidget* parent = nullptr); // 纯小写
-    ~mainwindow(); // 纯小写
-    // ... 其他保持不变
+    mainwindow(QWidget* parent = nullptr);
+    ~mainwindow();
     void addSun(int amount);
+    void gameOver(QGraphicsObject* winnerZombie); // ✅ 接收胜利者指针
+    QSoundEffect* peaFireSound;
 protected:
-    // 重写父类的鼠标按下事件，用于捕获玩家在战斗草坪上的点击动作
-    void mousePressEvent(QMouseEvent* event) override;
+    // 【新增这行新架构代码】：事件过滤器
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private slots:
-    // 自定义槽函数：用于处理定时器超时后的画面切换
     void nextLoadingStage();
-    void startGame();      // 处理点击草地“进入游戏”的槽函数
-    void startAdventure(); // 【新增】处理点击墓碑“开始冒险吧”的槽函数，用于加载战斗草坪
-
+    void startGame();
+    void startAdventure();
+    
+   
 private:
     Ui::MainWindowClass* ui;
+    bool isGameEnding = false; // ✅ 游戏结束锁
+    // 顺便确保你的 zombieSpawnTimer 声明为了类成员变量，方便在这里关闭它
+    QTimer* zombieSpawnTimer;
 
-    QTimer* loadingTimer;   // 控制画面的定时器
-    QLabel* imageLabel;     // 用来显示图片的标签
-    QSoundEffect* bgm;      // 背景音乐播放器
-    int currentStage;       // 记录当前播放到了哪一张图
+    // ==========================================
+    // 【核心重构：图形视图框架代替 combatBgLabel】
+    // ==========================================
+    QGraphicsScene* gameScene;       // 逻辑大舞台 (1600x900)
+    QGraphicsView* gameView;         // 玩家摄像机视口 (1200x900)
+    QGraphicsPixmapItem* combatBgItem; // 战斗背景图形项
 
-    // 透明度特效和动画控制器
+    // ==========================================
+    // 现有 UI 与逻辑组件 (保持不变)
+    // ==========================================
+    QTimer* loadingTimer;
+    QLabel* imageLabel;
+    QSoundEffect* bgm;
+    int currentStage;
+
     QGraphicsOpacityEffect* opacityEffect;
     QPropertyAnimation* fadeAnimation;
 
-    // 草地与按钮
-    QLabel* floorLabel; // 承载草地的标签
-    QPropertyAnimation* rollAnimation; // 控制草地铺开的动画
-    QPushButton* startButton; // 进入游戏的按钮
+    QLabel* floorLabel;
+    QPropertyAnimation* rollAnimation;
+    QPushButton* startButton;
 
-    // 主菜单界面元素
-    QLabel* menuBgLabel;         // 墓碑背景 (Surface.png)
-    QPushButton* btnAdventure;   // 冒险模式按钮 (mx)
-    QPushButton* btnMiniGames;   // 迷你游戏按钮 (mini)
-    QPushButton* btnPuzzle;      // 解谜模式按钮 (yizi)
-    QPushButton* btnPlay;        // 玩玩小游戏按钮 (play)
+    QLabel* menuBgLabel;
+    QPushButton* btnAdventure;
+    QPushButton* btnMiniGames;
+    QPushButton* btnPuzzle;
+    QPushButton* btnPlay;
 
-    // 【新增：商店卡槽系统 UI】
-    QLabel* shopBoard;          // 商店背景木板
-    QPushButton* sunCardBtn;    // 向日葵卡片按钮
-    QPushButton* peaCardBtn;    // 豌豆射手卡片按钮
+    QLabel* shopBoard;
+    QPushButton* sunCardBtn;
+    QPushButton* peaCardBtn;
 
-    // ---------------------------------------------------------
-    // 【必须补上的这几行】：种植状态机定义
-    // ---------------------------------------------------------
-    // 定义鼠标当前处于什么状态（手里没东西、拿着向日葵、拿着豌豆）
     enum MouseState { None, HoldingSunflower, HoldingPeashooter };
-    
-    // 记录当前鼠标手里的状态，一开始默认是空手 (None)
-    MouseState currentMouseState = None; 
-    // ---------------------------------------------------------
+    MouseState currentMouseState = None;
 
-    // 【新增：阳光经济系统】
-    int sunCount = 50; // 开局送 50 阳光
-    QLabel* sunLabel;  // 显示阳光数值的文本标签
+    int sunCount = 50;
+    QLabel* sunLabel;
 
-    // 【新增】核心战斗场景元素
-    QLabel* combatBgLabel;       // 真正的战斗草坪背景 (Background.jpg)
-    QLabel* lawnMowers[5];       // 5辆保护底线的小推车
-    int grassGrid[5][9];         // 5行9列的草地状态数组 (0=空地, 1=有植物)
+    // ✅ 【新增】：卡片的 CD 遮罩
+    QLabel* sunCardMask;
+    QLabel* peaCardMask;
+
+    // ✅ 【新增】：通用的触发冷却动画函数
+    void startCardCooldown(QPushButton* btn, QLabel* mask, int durationMs);
+    void tryBuyCard(int cost, MouseState state, const QString& cursorImgPath);
+
+    LawnMower* lawnMowers[5];
+    int grassGrid[5][9];
+
+    QLabel* gameOverLabel;
+
+    QSoundEffect* plantSound;
+   
 };

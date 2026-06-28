@@ -1,32 +1,33 @@
-#pragma once
-#include <QLabel>
+﻿#pragma once
+#include <QGraphicsObject> 
 #include <QTimer>
-#include <QDebug>
+#include <QMovie>
+#include <QPainter>
 
-// 植物基类，继承自 QLabel 以便直接显示贴图
-class Plant : public QLabel
+class Plant : public QGraphicsObject
 {
     Q_OBJECT
 public:
-    // 构造函数：需要传入逻辑坐标 row, col，以及父窗口指针
-    Plant(int r, int c, QWidget* parent = nullptr);
+    Plant(int r, int c, QGraphicsItem* parent = nullptr);
     virtual ~Plant();
 
-    // 核心公共属性
-    int row;         // 所在的逻辑网格行 (0~4)
-    int col;         // 所在的逻辑网格列 (0~8)
-    int hp;          // 当前生命值
-    int maxHp;       // 最大生命值
+    // ✅ 由父类统一接管的碰撞体积与渲染，子类不要再重写它们了！
+    QRectF boundingRect() const override;
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
-    // 纯虚函数：强制要求所有派生的子类（如向日葵）必须实现自己的专属动作
+    // 核心动作虚函数
     virtual void act() = 0;
 
-public slots:
-    // 通用受击与死亡机制
-    void takeDamage(int damage);
+    int getRow() const { return row; }
+    virtual void takeDamage(int damage);
     virtual void die();
 
 protected:
-    // 核心定时器：控制植物的动作频率 (例如多久产一次阳光/射一次子弹)
-    QTimer* actionTimer;
+    int row;
+    int col;
+    int hp;
+    int maxHp;
+    QTimer* actionTimer;   // 动作定时器
+    QMovie* plantMovie;    // ✅ 统一的动画播放器
+    int yOffset;
 };
