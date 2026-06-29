@@ -15,6 +15,7 @@
 #include "lawnmower.h"
 #include "sunflower.h"
 #include "peashooter.h"
+#include "wallnut.h"
 #include "peabullet.h"
 #include "zombie.h" 
 #include "sun.h"            
@@ -160,6 +161,13 @@ mainwindow::mainwindow(QWidget* parent)
     peaCardBtn->setIcon(QIcon(":/res/images/Peashooter.png"));
     peaCardBtn->setIconSize(QSize(40, 40));
 
+    // 👇 【新增】：坚果墙卡片初始化
+    wallnutCardBtn = new QPushButton(shopBoard);
+    wallnutCardBtn->setGeometry(188, 8, 50, 70); // X 坐标向右挪 53 像素，卡进第三个槽位
+    wallnutCardBtn->setStyleSheet("QPushButton { border-image: url(:/res/images/Card.png); border: none; background: transparent; }");
+    wallnutCardBtn->setIcon(QIcon(":/res/images/WallNut.png")); // 确认 qrc 里有这张静态图
+    wallnutCardBtn->setIconSize(QSize(40, 40));
+
     QLabel* sunCostTxt = new QLabel("50", sunCardBtn);
     sunCostTxt->setGeometry(5, 52, 25, 15);
     sunCostTxt->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -169,6 +177,11 @@ mainwindow::mainwindow(QWidget* parent)
     peaCostTxt->setGeometry(5, 52, 30, 15);
     peaCostTxt->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     peaCostTxt->setStyleSheet("color: black; font-size: 12px; font-weight: bold; background: transparent;");
+
+    QLabel* wallnutCostTxt = new QLabel("50", wallnutCardBtn);
+    wallnutCostTxt->setGeometry(5, 52, 25, 15);
+    wallnutCostTxt->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    wallnutCostTxt->setStyleSheet("color: black; font-size: 12px; font-weight: bold; background: transparent;");
 
     sunCardMask = new QLabel(sunCardBtn);
     sunCardMask->setStyleSheet("background-color: rgba(0, 0, 0, 160);");
@@ -180,12 +193,43 @@ mainwindow::mainwindow(QWidget* parent)
     peaCardMask->setGeometry(0, 0, 50, 70);
     peaCardMask->hide();
 
+    wallnutCardMask = new QLabel(wallnutCardBtn);
+    wallnutCardMask->setStyleSheet("background-color: rgba(0, 0, 0, 160);");
+    wallnutCardMask->setGeometry(0, 0, 50, 70);
+    wallnutCardMask->hide();
+
+
     connect(sunCardBtn, &QPushButton::clicked, [this]() {
         tryBuyCard(50, HoldingSunflower, ":/res/images/SunFlower.png");
         });
 
     connect(peaCardBtn, &QPushButton::clicked, [this]() {
         tryBuyCard(100, HoldingPeashooter, ":/res/images/Peashooter.png");
+        });
+
+    // 绑定坚果墙的购买点击事件
+    connect(wallnutCardBtn, &QPushButton::clicked, [this]() {
+        tryBuyCard(50, HoldingWallNut, ":/res/images/WallNut.png");
+        });
+
+    // ---------------- 【构建右上角铲子台】(独立控件) ----------------
+    // ✅ 1. 恢复父对象为 this，解除与商店栏的强绑定
+    shovelBankBtn = new QPushButton(this);
+
+    // ✅ 2. 坐标恢复为 0,0，尺寸保持 70x72
+    shovelBankBtn->setGeometry(800, 0, 70, 72);
+    shovelBankBtn->setStyleSheet("QPushButton { border-image: url(:/res/images/ShovelBank.png); border: none; background: transparent; }");
+    shovelBankBtn->setIcon(QIcon(":/res/images/Shovel.png"));
+    shovelBankBtn->setIconSize(QSize(50, 50));
+
+    // 开局重新藏好
+    shovelBankBtn->hide();
+
+    // 绑定拿起铲子的事件保持不变
+    connect(shovelBankBtn, &QPushButton::clicked, [this]() {
+        currentMouseState = HoldingShovel;
+        gameView->viewport()->setCursor(QCursor(QPixmap(":/res/images/Shovel.png").scaled(50, 50)));
+        qDebug() << "【战术系统】拿起了铲子，准备铲除植物！";
         });
 
     bgm = new QSoundEffect(this);
@@ -378,6 +422,12 @@ void mainwindow::transitionToGame()
     shopProxy->setZValue(1000);
     shopBoard->show();
 
+    // 👇 【恢复】：作为独立的代理控件加入游戏场景，紧贴在商店栏右侧
+    auto shovelProxy = gameScene->addWidget(shovelBankBtn);
+    shovelProxy->setPos(645, 0);
+    shovelProxy->setZValue(1000);
+    shovelBankBtn->show();
+
     for (int i = 0; i < 5; ++i) {
         for (int j = 0; j < 9; ++j) {
             grassGrid[i][j] = 0;
@@ -423,7 +473,7 @@ void mainwindow::transitionToGame()
 }
 
 // =========================================================
-// 🎯 鼠标事件拦截与种植逻辑
+// 🎯 【核心操作层：鼠标事件拦截与种植/铲除逻辑】
 // =========================================================
 bool mainwindow::eventFilter(QObject* watched, QEvent* event)
 {
@@ -437,7 +487,17 @@ bool mainwindow::eventFilter(QObject* watched, QEvent* event)
                 int col = (scenePos.x() - 250) / 80;
                 int row = (scenePos.y() - 85) / 95;
 
+                // =========================================================
+                // 1. 如果点击的是有效空地 (值为0)，进行种植逻辑
+                // =========================================================
                 if (row >= 0 && row < 5 && col >= 0 && col < 9 && grassGrid[row][col] == 0) {
+
+                    // 防呆设计：如果拿着铲子点空地，直接取消铲子状态
+                    if (currentMouseState == HoldingShovel) {
+                        currentMouseState = None;
+                        gameView->viewport()->setCursor(Qt::ArrowCursor);
+                        return true;
+                    }
 
                     int placeX = 250 + col * 80 + 40;
                     int placeY = 85 + row * 95 + 47;
@@ -472,11 +532,20 @@ bool mainwindow::eventFilter(QObject* watched, QEvent* event)
                         sunCount -= 100;
                         startCardCooldown(peaCardBtn, peaCardMask, 7500);
                     }
+                    else if (currentMouseState == HoldingWallNut) {
+                        WallNut* wallnutPlant = new WallNut(row, col);
+                        gameScene->addItem(wallnutPlant);
+                        wallnutPlant->setZValue(50);
+                        wallnutPlant->setPos(placeX, placeY);
 
+                        sunCount -= 50;
+                        startCardCooldown(wallnutCardBtn, wallnutCardMask, 30000);
+                    }
+
+                    // 更新网格状态并播放种地音效
                     sunLabel->setText(QString::number(sunCount));
                     grassGrid[row][col] = 1;
 
-                    // 播放种植声并清理指针释放内存
                     QSoundEffect* tmpPlantSound = new QSoundEffect();
                     tmpPlantSound->setSource(QUrl("qrc:/res/sound/plant.wav"));
                     tmpPlantSound->setVolume(0.8f);
@@ -489,8 +558,53 @@ bool mainwindow::eventFilter(QObject* watched, QEvent* event)
                     gameView->viewport()->setCursor(Qt::ArrowCursor);
                     return true;
                 }
+                // =========================================================
+                // 2. 如果点击的是已被占用的格子 (值为1)，进行铲除逻辑
+                // =========================================================
+                else if (row >= 0 && row < 5 && col >= 0 && col < 9 && grassGrid[row][col] == 1) {
+
+                    if (currentMouseState == HoldingShovel) {
+                        int placeX = 250 + col * 80 + 40;
+                        int placeY = 85 + row * 95 + 47;
+                        QPointF checkPos(placeX, placeY);
+
+                        // 🔍 扫描该坐标中心点包含的所有图形项
+                        QList<QGraphicsItem*> itemsAtClick = gameScene->items(checkPos);
+                        for (QGraphicsItem* item : itemsAtClick) {
+                            Plant* targetPlant = dynamic_cast<Plant*>(item);
+                            if (targetPlant) {
+                                targetPlant->die(); // 销毁植物
+                                grassGrid[row][col] = 0; // 释放网格占用
+                                qDebug() << "【战术系统】成功铲除 第" << row << "行 第" << col << "列的植物！";
+
+                                QSoundEffect* digSound = new QSoundEffect();
+                                digSound->setSource(QUrl("qrc:/res/sound/plant.wav"));
+                                digSound->setVolume(0.8f);
+                                digSound->play();
+                                connect(digSound, &QSoundEffect::playingChanged, [digSound]() {
+                                    if (!digSound->isPlaying()) digSound->deleteLater();
+                                    });
+
+                                break;
+                            }
+                        }
+
+                        currentMouseState = None;
+                        gameView->viewport()->setCursor(Qt::ArrowCursor);
+                        return true;
+                    }
+                    else {
+                        // 拿着植物点到了有植物的地方
+                        qDebug() << "【战场系统】位置已被占用！种植取消。";
+                        currentMouseState = None;
+                        gameView->viewport()->setCursor(Qt::ArrowCursor);
+                    }
+                }
+                // =========================================================
+                // 3. 异常点击拦截 (点出边界)
+                // =========================================================
                 else {
-                    qDebug() << "【战场系统】位置非法或已被占用！种植取消。";
+                    qDebug() << "【战场系统】位置非法或超出草坪边界！取消操作。";
                     currentMouseState = None;
                     gameView->viewport()->setCursor(Qt::ArrowCursor);
                 }
@@ -500,7 +614,7 @@ bool mainwindow::eventFilter(QObject* watched, QEvent* event)
             if (currentMouseState != None) {
                 currentMouseState = None;
                 gameView->viewport()->setCursor(Qt::ArrowCursor);
-                qDebug() << "【商店系统】右键取消种植！";
+                qDebug() << "【商店/战术系统】右键取消手持状态！";
             }
         }
     }

@@ -75,8 +75,12 @@ private:
     QLabel* shopBoard;
     QPushButton* sunCardBtn;
     QPushButton* peaCardBtn;
+    QPushButton* wallnutCardBtn; // ✅ 新增坚果墙卡片按钮
 
-    enum MouseState { None, HoldingSunflower, HoldingPeashooter };
+    QPushButton* shovelBankBtn;  // ✅ 新增：铲子底座按钮
+
+
+    enum MouseState { None, HoldingSunflower, HoldingPeashooter, HoldingWallNut, HoldingShovel }; // ✅ 新增 HoldingShovel
     MouseState currentMouseState = None;
 
     int sunCount = 50;
@@ -84,6 +88,7 @@ private:
 
     QLabel* sunCardMask;
     QLabel* peaCardMask;
+    QLabel* wallnutCardMask;     // ✅ 新增坚果墙 CD 遮罩
 
     void startCardCooldown(QPushButton* btn, QLabel* mask, int durationMs);
     void tryBuyCard(int cost, MouseState state, const QString& cursorImgPath);

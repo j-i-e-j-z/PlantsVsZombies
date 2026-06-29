@@ -67,6 +67,9 @@
     <ClCompile Include="lawnmower.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="wallnut.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="plant.h">
@@ -88,6 +91,9 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="lawnmower.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="wallnut.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>
