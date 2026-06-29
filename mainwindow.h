@@ -10,11 +10,12 @@
 #include <QPushButton>
 #include <QMouseEvent>
 
-// 【新增】引入图形视图框架头文件
+// 引入图形视图框架头文件
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsObject>
+#include <QMovie>
 
 class LawnMower;
 
@@ -25,33 +26,33 @@ public:
     mainwindow(QWidget* parent = nullptr);
     ~mainwindow();
     void addSun(int amount);
-    void gameOver(QGraphicsObject* winnerZombie); // ✅ 接收胜利者指针
+    void gameOver(QGraphicsObject* winnerZombie);
     QSoundEffect* peaFireSound;
+
 protected:
-    // 【新增这行新架构代码】：事件过滤器
+    // 事件过滤器
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private slots:
     void nextLoadingStage();
     void startGame();
     void startAdventure();
-    
-   
+    void transitionToGame(); // 🎬 负责过场动画结束后的正式切图
+
 private:
     Ui::MainWindowClass* ui;
-    bool isGameEnding = false; // ✅ 游戏结束锁
-    // 顺便确保你的 zombieSpawnTimer 声明为了类成员变量，方便在这里关闭它
+    bool isGameEnding = false;
     QTimer* zombieSpawnTimer;
 
     // ==========================================
-    // 【核心重构：图形视图框架代替 combatBgLabel】
+    // 图形视图框架代替 combatBgLabel
     // ==========================================
-    QGraphicsScene* gameScene;       // 逻辑大舞台 (1600x900)
-    QGraphicsView* gameView;         // 玩家摄像机视口 (1200x900)
-    QGraphicsPixmapItem* combatBgItem; // 战斗背景图形项
+    QGraphicsScene* gameScene;
+    QGraphicsView* gameView;
+    QGraphicsPixmapItem* combatBgItem;
 
     // ==========================================
-    // 现有 UI 与逻辑组件 (保持不变)
+    // 现有 UI 与逻辑组件
     // ==========================================
     QTimer* loadingTimer;
     QLabel* imageLabel;
@@ -81,11 +82,9 @@ private:
     int sunCount = 50;
     QLabel* sunLabel;
 
-    // ✅ 【新增】：卡片的 CD 遮罩
     QLabel* sunCardMask;
     QLabel* peaCardMask;
 
-    // ✅ 【新增】：通用的触发冷却动画函数
     void startCardCooldown(QPushButton* btn, QLabel* mask, int durationMs);
     void tryBuyCard(int cost, MouseState state, const QString& cursorImgPath);
 
@@ -93,7 +92,12 @@ private:
     int grassGrid[5][9];
 
     QLabel* gameOverLabel;
-
     QSoundEffect* plantSound;
-   
+
+    // ==========================================
+    // 🎬 冒险模式过渡动画组件
+    // ==========================================
+    QLabel* zombieHandLabel;
+    QMovie* zombieHandMovie;
+    QSoundEffect* evilLaughSound;
 };

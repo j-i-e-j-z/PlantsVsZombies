@@ -117,5 +117,7 @@
         <file>images/Peashooter.png</file>
         <file>images/other/LawnMower/normal.gif</file>
         <file>images/other/LawnMower/tricked.gif</file>
+        <file>sound/failure.wav</file>
+        <file>images/other/Zombie_hand/Zombie_hand.gif</file>
     </qresource>
 </RCC>

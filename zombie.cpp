@@ -10,7 +10,7 @@
 #include <QTimer>
 
 Zombie::Zombie(int r, QGraphicsItem* parent)
-    : QGraphicsObject(parent), row(r), hp(270), maxHp(270), speed(0.3), state(Normal)
+    : QGraphicsObject(parent), row(r), hp(270), maxHp(270), speed(30), state(Normal)
 {
     // 1. 加载僵尸行走 GIF
     // ⚠️ 极其重要：请一定要确保你的 qrc 资源文件里有 ZombieWalk1.gif 这个文件

@@ -4,7 +4,7 @@
 int main(int argc, char* argv[])
 {
     QApplication a(argc, argv);
-    mainwindow w;  // 【这里改成全小写】
+    mainwindow w;
     w.show();
     return a.exec();
 }
