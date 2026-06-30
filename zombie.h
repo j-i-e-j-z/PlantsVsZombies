@@ -9,20 +9,24 @@
 class Zombie : public QGraphicsObject {
     Q_OBJECT
 public:
-    Zombie(int r, QGraphicsItem* parent = nullptr);
+    enum ZombieType { NormalZombie, ConeheadZombie, BucketheadZombie };
+
+    Zombie(int r, ZombieType type = NormalZombie, QGraphicsItem* parent = nullptr);
     ~Zombie() override;
 
     virtual QPainterPath shape() const override;
-    // 图形框架核心重写
     QRectF boundingRect() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
     int getRow() const { return row; }
     void takeDamage(int damage, bool isFire = false);
+
+    // 核心控制接口
     void pauseBehavior();
+    void resumeBehavior(); // ✅ 新增：恢复行为
 
 private slots:
-    void move(); // 控制僵尸每帧向左挪动的槽函数
+    void move();
 
 signals:
     void gameLost(QGraphicsObject* attacker);
@@ -30,14 +34,20 @@ signals:
 private:
     enum ZombieState { Normal, LostArm, Eating, Dead, Burned };
     ZombieState state;
-    int hp;             // 当前血量
-    int maxHp;          // 最大血量
-    int row;            // 僵尸当前所在的行号 (0-4)
-    
-    qreal speed;        // 移动速度
 
-    QMovie* zombieMovie; // 僵尸行走 GIF 动图
-    QTimer* moveTimer;   // 移动心跳定时器
-    QSoundEffect* eatSound;    // 专属啃咬音效
-    QSoundEffect* splatSound;  // 专属挨打音效
-}; 
+    ZombieType type;
+    int hp;
+    int maxHp;
+    int armorHp;
+    QString currentFolder;
+
+    int row;
+    qreal speed;
+
+    QMovie* zombieMovie;
+    QTimer* moveTimer;
+    QSoundEffect* eatSound;
+    QSoundEffect* splatSound;
+    QSoundEffect* shieldHitSound;
+    QSoundEffect* plasticHitSound;
+};

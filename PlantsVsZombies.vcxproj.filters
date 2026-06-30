@@ -70,6 +70,15 @@
     <ClCompile Include="wallnut.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="progressbar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="repeater.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="cherrybomb.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="plant.h">
@@ -94,6 +103,15 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="wallnut.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="progressbar.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="cherrybomb.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="repeater.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

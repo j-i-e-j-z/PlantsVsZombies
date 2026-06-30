@@ -10,8 +10,10 @@
 #include <QSize>
 #include <QCursor>
 #include <QRandomGenerator> 
-#include <QGraphicsProxyWidget> 
-#include <QSoundEffect>
+#include <QVBoxLayout>
+#include <QApplication>
+#include <QGraphicsProxyWidget>
+
 #include "lawnmower.h"
 #include "sunflower.h"
 #include "peashooter.h"
@@ -19,20 +21,22 @@
 #include "peabullet.h"
 #include "zombie.h" 
 #include "sun.h"            
+#include "repeater.h"
+#include "cherrybomb.h"
 
 mainwindow::mainwindow(QWidget* parent)
-    : QMainWindow(parent), ui(new Ui::MainWindowClass), currentStage(0), zombieSpawnTimer(nullptr)
+    : QMainWindow(parent), ui(new Ui::MainWindowClass), currentStage(0),
+    zombieSpawnTimer(nullptr), skySunTimer(nullptr), progressTimer(nullptr),
+    totalZombies(15), spawnedZombies(0), killedZombies(0),
+    isPaused(false), isDaveTalking(false), daveStep(0),
+    daveItem(nullptr), bubbleItem(nullptr), isGameInitialized(false)
 {
     ui->setupUi(this);
 
-    // ✅ 初始化网格，防止野指针报错
     for (int i = 0; i < 5; ++i) {
-        for (int j = 0; j < 9; ++j) {
-            grassGrid[i][j] = 0;
-        }
+        for (int j = 0; j < 9; ++j) { grassGrid[i][j] = 0; }
     }
 
-    // ✅ 【神级修复】：让 Qt 默认的中心画布变透明，绝不阻挡鼠标点击！
     ui->centralWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
     this->menuBar()->hide();
     this->statusBar()->hide();
@@ -40,9 +44,6 @@ mainwindow::mainwindow(QWidget* parent)
     this->setFixedSize(1000, 600);
     this->setStyleSheet("QMainWindow { background-color: black; }");
 
-    // ====================================================================================
-    // 1. 【逻辑大舞台】：严格使用原图物理尺寸 (1400x600)
-    // ====================================================================================
     gameScene = new QGraphicsScene(this);
     gameScene->setSceneRect(0, 0, 1400, 600);
 
@@ -50,9 +51,6 @@ mainwindow::mainwindow(QWidget* parent)
     combatBgItem->setZValue(-10);
     gameScene->addItem(combatBgItem);
 
-    // ====================================================================================
-    // 2. 【玩家摄像机】：性能优化拉满
-    // ====================================================================================
     gameView = new QGraphicsView(gameScene, this);
     gameView->setGeometry(0, 0, 1000, 600);
     gameView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -60,15 +58,34 @@ mainwindow::mainwindow(QWidget* parent)
     gameView->setRenderHint(QPainter::Antialiasing);
     gameView->setStyleSheet("background: transparent; border: none;");
     gameView->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-
     gameView->setCacheMode(QGraphicsView::CacheBackground);
     gameView->setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
     gameView->hide();
     gameView->viewport()->installEventFilter(this);
 
     // ====================================================================================
-    // 3. 【开场动画 UI】
+    // 🎨 【终结黑边】使用原生 QWidget + 绝对坐标组件搭建的超清彩色暂停菜单
     // ====================================================================================
+    pauseWidget = new QWidget(gameView);
+    pauseWidget->setGeometry(0, 0, 1000, 600);
+    pauseWidget->setStyleSheet("background-color: rgba(0, 0, 0, 160);");
+    pauseWidget->hide();
+
+    QLabel* tombstoneBg = new QLabel(pauseWidget);
+    tombstoneBg->setPixmap(QPixmap(":/res/images/options_menuback.png").scaled(400, 450, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    tombstoneBg->setGeometry(300, 75, 400, 450);
+    tombstoneBg->setStyleSheet("background: transparent;");
+
+    QPushButton* resumeBtn = new QPushButton("返回游戏", pauseWidget);
+    resumeBtn->setGeometry(425, 290, 150, 45);
+    resumeBtn->setStyleSheet("QPushButton { border-image: url(:/res/images/button_down_middle.png); color: white; font-weight: bold; font-size: 18px; }");
+    connect(resumeBtn, &QPushButton::clicked, this, &mainwindow::togglePause);
+
+    QPushButton* exitBtn = new QPushButton("返回主菜单", pauseWidget);
+    exitBtn->setGeometry(425, 360, 150, 45);
+    exitBtn->setStyleSheet("QPushButton { border-image: url(:/res/images/button_down_middle.png); color: white; font-weight: bold; font-size: 18px; }");
+    connect(exitBtn, &QPushButton::clicked, this, &mainwindow::returnToMainMenu);
+
     imageLabel = new QLabel(this);
     imageLabel->setGeometry(0, 0, 1000, 600);
     imageLabel->setAlignment(Qt::AlignCenter);
@@ -90,21 +107,14 @@ mainwindow::mainwindow(QWidget* parent)
 
     int fontId = QFontDatabase::addApplicationFont(":/res/font/pvz_btn.ttf");
     QString pvzFontFamily = "Arial";
-    if (fontId != -1) {
-        pvzFontFamily = QFontDatabase::applicationFontFamilies(fontId).at(0);
-    }
+    if (fontId != -1) { pvzFontFamily = QFontDatabase::applicationFontFamilies(fontId).at(0); }
 
     startButton = new QPushButton(QStringLiteral("点击进入游戏"), this);
     startButton->setGeometry(350, 545, 300, 55);
-    QString btnStyle = QString(
-        "QPushButton { font-family: '%1'; color: white; font-size: 48px; font-weight: bold; background: transparent; border: none; }"
-        "QPushButton:hover { color: #84cc16; }"
-    ).arg(pvzFontFamily);
-    startButton->setStyleSheet(btnStyle);
+    startButton->setStyleSheet(QString("QPushButton { font-family: '%1'; color: white; font-size: 48px; font-weight: bold; background: transparent; border: none; } QPushButton:hover { color: #84cc16; }").arg(pvzFontFamily));
     startButton->hide();
     connect(startButton, &QPushButton::clicked, this, &mainwindow::startGame);
 
-    // ---------------- 【构建主菜单界面】 ----------------
     menuBgLabel = new QLabel(this);
     menuBgLabel->setGeometry(0, 0, 1000, 600);
     menuBgLabel->setPixmap(QPixmap(":/res/images/Surface.png"));
@@ -132,106 +142,6 @@ mainwindow::mainwindow(QWidget* parent)
     btnPlay->setStyleSheet("QPushButton { border-image: url(:/res/images/play.png); border: none; } QPushButton:hover { border-image: url(:/res/images/play1.png); }");
     btnPlay->hide();
 
-    // ---------------- 【构建小推车】 ----------------
-    for (int i = 0; i < 5; ++i) {
-        lawnMowers[i] = new LawnMower(i);
-    }
-
-    // ---------------- 【构建顶部植物商店】 ----------------
-    shopBoard = new QLabel(this);
-    shopBoard->setPixmap(QPixmap(":/res/images/Shop.png").scaled(520, 90, Qt::IgnoreAspectRatio));
-    shopBoard->setGeometry(120, 0, 520, 90);
-    shopBoard->hide();
-
-    sunLabel = new QLabel(shopBoard);
-    sunLabel->setGeometry(15, 62, 55, 20);
-    sunLabel->setText(QString::number(sunCount));
-    sunLabel->setAlignment(Qt::AlignCenter);
-    sunLabel->setStyleSheet("QLabel { color: black; font-size: 16px; font-weight: bold; background: transparent; }");
-
-    sunCardBtn = new QPushButton(shopBoard);
-    sunCardBtn->setGeometry(82, 8, 50, 70);
-    sunCardBtn->setStyleSheet("QPushButton { border-image: url(:/res/images/Card.png); border: none; background: transparent; }");
-    sunCardBtn->setIcon(QIcon(":/res/images/SunFlower.png"));
-    sunCardBtn->setIconSize(QSize(40, 40));
-
-    peaCardBtn = new QPushButton(shopBoard);
-    peaCardBtn->setGeometry(135, 8, 50, 70);
-    peaCardBtn->setStyleSheet("QPushButton { border-image: url(:/res/images/Card.png); border: none; background: transparent; }");
-    peaCardBtn->setIcon(QIcon(":/res/images/Peashooter.png"));
-    peaCardBtn->setIconSize(QSize(40, 40));
-
-    // 👇 【新增】：坚果墙卡片初始化
-    wallnutCardBtn = new QPushButton(shopBoard);
-    wallnutCardBtn->setGeometry(188, 8, 50, 70); // X 坐标向右挪 53 像素，卡进第三个槽位
-    wallnutCardBtn->setStyleSheet("QPushButton { border-image: url(:/res/images/Card.png); border: none; background: transparent; }");
-    wallnutCardBtn->setIcon(QIcon(":/res/images/WallNut.png")); // 确认 qrc 里有这张静态图
-    wallnutCardBtn->setIconSize(QSize(40, 40));
-
-    QLabel* sunCostTxt = new QLabel("50", sunCardBtn);
-    sunCostTxt->setGeometry(5, 52, 25, 15);
-    sunCostTxt->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    sunCostTxt->setStyleSheet("color: black; font-size: 12px; font-weight: bold; background: transparent;");
-
-    QLabel* peaCostTxt = new QLabel("100", peaCardBtn);
-    peaCostTxt->setGeometry(5, 52, 30, 15);
-    peaCostTxt->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    peaCostTxt->setStyleSheet("color: black; font-size: 12px; font-weight: bold; background: transparent;");
-
-    QLabel* wallnutCostTxt = new QLabel("50", wallnutCardBtn);
-    wallnutCostTxt->setGeometry(5, 52, 25, 15);
-    wallnutCostTxt->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    wallnutCostTxt->setStyleSheet("color: black; font-size: 12px; font-weight: bold; background: transparent;");
-
-    sunCardMask = new QLabel(sunCardBtn);
-    sunCardMask->setStyleSheet("background-color: rgba(0, 0, 0, 160);");
-    sunCardMask->setGeometry(0, 0, 50, 70);
-    sunCardMask->hide();
-
-    peaCardMask = new QLabel(peaCardBtn);
-    peaCardMask->setStyleSheet("background-color: rgba(0, 0, 0, 160);");
-    peaCardMask->setGeometry(0, 0, 50, 70);
-    peaCardMask->hide();
-
-    wallnutCardMask = new QLabel(wallnutCardBtn);
-    wallnutCardMask->setStyleSheet("background-color: rgba(0, 0, 0, 160);");
-    wallnutCardMask->setGeometry(0, 0, 50, 70);
-    wallnutCardMask->hide();
-
-
-    connect(sunCardBtn, &QPushButton::clicked, [this]() {
-        tryBuyCard(50, HoldingSunflower, ":/res/images/SunFlower.png");
-        });
-
-    connect(peaCardBtn, &QPushButton::clicked, [this]() {
-        tryBuyCard(100, HoldingPeashooter, ":/res/images/Peashooter.png");
-        });
-
-    // 绑定坚果墙的购买点击事件
-    connect(wallnutCardBtn, &QPushButton::clicked, [this]() {
-        tryBuyCard(50, HoldingWallNut, ":/res/images/WallNut.png");
-        });
-
-    // ---------------- 【构建右上角铲子台】(独立控件) ----------------
-    // ✅ 1. 恢复父对象为 this，解除与商店栏的强绑定
-    shovelBankBtn = new QPushButton(this);
-
-    // ✅ 2. 坐标恢复为 0,0，尺寸保持 70x72
-    shovelBankBtn->setGeometry(800, 0, 70, 72);
-    shovelBankBtn->setStyleSheet("QPushButton { border-image: url(:/res/images/ShovelBank.png); border: none; background: transparent; }");
-    shovelBankBtn->setIcon(QIcon(":/res/images/Shovel.png"));
-    shovelBankBtn->setIconSize(QSize(50, 50));
-
-    // 开局重新藏好
-    shovelBankBtn->hide();
-
-    // 绑定拿起铲子的事件保持不变
-    connect(shovelBankBtn, &QPushButton::clicked, [this]() {
-        currentMouseState = HoldingShovel;
-        gameView->viewport()->setCursor(QCursor(QPixmap(":/res/images/Shovel.png").scaled(50, 50)));
-        qDebug() << "【战术系统】拿起了铲子，准备铲除植物！";
-        });
-
     bgm = new QSoundEffect(this);
     bgm->setSource(QUrl("qrc:/res/sound/Grazy.wav"));
     bgm->setLoopCount(QSoundEffect::Infinite);
@@ -250,9 +160,6 @@ mainwindow::mainwindow(QWidget* parent)
     plantSound->setSource(QUrl("qrc:/res/sound/plant.wav"));
     plantSound->setVolume(0.8f);
 
-    // =========================================================
-    // 🧠 【终极结算 UI】
-    // =========================================================
     gameOverLabel = new QLabel(this);
     gameOverLabel->setGeometry(0, 0, 1000, 600);
     gameOverLabel->setStyleSheet("background-color: rgba(0, 0, 0, 180);");
@@ -260,9 +167,6 @@ mainwindow::mainwindow(QWidget* parent)
     gameOverLabel->setPixmap(QPixmap(":/res/images/ZombiesWon.png").scaledToWidth(600, Qt::SmoothTransformation));
     gameOverLabel->hide();
 
-    // =========================================================
-    // 🎬 【新增：过场动画组件初始化】
-    // =========================================================
     evilLaughSound = new QSoundEffect(this);
     evilLaughSound->setSource(QUrl("qrc:/res/sound/evillaugh.wav"));
     evilLaughSound->setVolume(1.0f);
@@ -276,188 +180,192 @@ mainwindow::mainwindow(QWidget* parent)
     zombieHandMovie = new QMovie(":/res/images/other/Zombie_hand/Zombie_hand.gif");
     zombieHandLabel->setMovie(zombieHandMovie);
     zombieHandLabel->hide();
-
-    // ✅ 新增：控制僵尸手 GIF 只播放一次（停在最后一帧）
     connect(zombieHandMovie, &QMovie::frameChanged, [this]() {
-        // 如果当前播放到了最后一帧
-        if (zombieHandMovie->currentFrameNumber() == (zombieHandMovie->frameCount() - 1)) {
-            zombieHandMovie->stop(); // 强行刹车，保持定格在举着手的状态！
-        }
+        if (zombieHandMovie->currentFrameNumber() == (zombieHandMovie->frameCount() - 1)) zombieHandMovie->stop();
         });
+
+    daveSound = new QSoundEffect(this);
+    daveSound->setVolume(1.0f);
 }
 
-mainwindow::~mainwindow()
-{
-    delete ui;
-}
+mainwindow::~mainwindow() { delete ui; }
 
-// ====================================================================
-// 开场动画状态机
-// ====================================================================
-void mainwindow::nextLoadingStage()
-{
+void mainwindow::nextLoadingStage() {
     switch (currentStage) {
-    case 0:
-        imageLabel->setPixmap(QPixmap(":/res/images/init.png"));
-        fadeAnimation->setStartValue(0.0);
-        fadeAnimation->setEndValue(1.0);
-        fadeAnimation->start();
-        loadingTimer->start(2000);
-        break;
-    case 1:
-        fadeAnimation->setStartValue(1.0);
-        fadeAnimation->setEndValue(0.0);
-        fadeAnimation->start();
-        loadingTimer->start(800);
-        break;
-    case 2:
-        imageLabel->setPixmap(QPixmap(":/res/images/LogoWord.jpg"));
-        fadeAnimation->setStartValue(0.0);
-        fadeAnimation->setEndValue(1.0);
-        fadeAnimation->start();
-        loadingTimer->start(2000);
-        break;
-    case 3:
-        fadeAnimation->setStartValue(1.0);
-        fadeAnimation->setEndValue(0.0);
-        fadeAnimation->start();
-        loadingTimer->start(800);
-        break;
-    case 4:
-        imageLabel->setPixmap(QPixmap(":/res/images/StartScreen.jpg"));
-        fadeAnimation->setStartValue(0.0);
-        fadeAnimation->setEndValue(1.0);
-        fadeAnimation->start();
-        loadingTimer->start(1000);
-        break;
-    case 5:
-        floorLabel->show();
-        rollAnimation->setStartValue(QRect(80, 430, 200, 225));
-        rollAnimation->setEndValue(QRect(80, 430, 820, 225));
-        rollAnimation->start();
-        loadingTimer->start(1600);
-        break;
-    case 6:
-        loadingTimer->stop();
-        startButton->show();
-        startButton->raise();
-        break;
+    case 0: imageLabel->setPixmap(QPixmap(":/res/images/init.png")); fadeAnimation->setStartValue(0.0); fadeAnimation->setEndValue(1.0); fadeAnimation->start(); loadingTimer->start(2000); break;
+    case 1: fadeAnimation->setStartValue(1.0); fadeAnimation->setEndValue(0.0); fadeAnimation->start(); loadingTimer->start(800); break;
+    case 2: imageLabel->setPixmap(QPixmap(":/res/images/LogoWord.jpg")); fadeAnimation->setStartValue(0.0); fadeAnimation->setEndValue(1.0); fadeAnimation->start(); loadingTimer->start(2000); break;
+    case 3: fadeAnimation->setStartValue(1.0); fadeAnimation->setEndValue(0.0); fadeAnimation->start(); loadingTimer->start(800); break;
+    case 4: imageLabel->setPixmap(QPixmap(":/res/images/StartScreen.jpg")); fadeAnimation->setStartValue(0.0); fadeAnimation->setEndValue(1.0); fadeAnimation->start(); loadingTimer->start(1000); break;
+    case 5: floorLabel->show(); rollAnimation->setStartValue(QRect(80, 430, 200, 225)); rollAnimation->setEndValue(QRect(80, 430, 820, 225)); rollAnimation->start(); loadingTimer->start(1600); break;
+    case 6: loadingTimer->stop(); startButton->show(); startButton->raise(); break;
     }
     currentStage++;
 }
 
-void mainwindow::startGame()
-{
-    imageLabel->hide();
-    floorLabel->hide();
-    startButton->hide();
-
-    menuBgLabel->show();
-    btnAdventure->show();
-    btnMiniGames->show();
-    btnPuzzle->show();
-    btnPlay->show();
-
-    btnAdventure->raise();
-    btnMiniGames->raise();
-    btnPuzzle->raise();
-    btnPlay->raise();
+void mainwindow::startGame() {
+    imageLabel->hide(); floorLabel->hide(); startButton->hide();
+    menuBgLabel->show(); btnAdventure->show(); btnMiniGames->show(); btnPuzzle->show(); btnPlay->show();
 }
 
-// ====================================================================
-// 🎬 拦截过渡：触发大笑与僵尸手动画
-// ====================================================================
-void mainwindow::startAdventure()
-{
-    // ✅ 修复 1：不要隐藏按钮（保留墓碑文字），而是让它们“变成透明幽灵”，
-    // 这样既不会变灰影响观感，又能完美无视玩家的鼠标点击，防止手抖重复触发！
+void mainwindow::startAdventure() {
     btnAdventure->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-    btnMiniGames->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-    btnPuzzle->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-    btnPlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-
     evilLaughSound->play();
-
-    zombieHandLabel->show();
-    zombieHandLabel->raise();
+    zombieHandLabel->show(); zombieHandLabel->raise();
     zombieHandMovie->start();
-
-    // 延时 3.5 秒后切换场景
     QTimer::singleShot(3500, this, &mainwindow::transitionToGame);
 }
 
-// ====================================================================
-// 🎮 正式切入战斗场景
-// ====================================================================
-void mainwindow::transitionToGame()
-{
-    zombieHandMovie->stop();
-    zombieHandLabel->hide();
-    menuBgLabel->hide();
-
-    // ✅ 修复 1 扫尾：真正进入游戏时，再把这些按钮彻底隐藏
-    btnAdventure->hide();
-    btnMiniGames->hide();
-    btnPuzzle->hide();
-    btnPlay->hide();
-
-    // （顺手清理：把点击响应恢复回来，防止下次退回主菜单时点不动）
-    btnAdventure->setAttribute(Qt::WA_TransparentForMouseEvents, false);
-    btnMiniGames->setAttribute(Qt::WA_TransparentForMouseEvents, false);
-    btnPuzzle->setAttribute(Qt::WA_TransparentForMouseEvents, false);
-    btnPlay->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+// =========================================================================
+// 🚀 场景切换与单例 UI 初始化 (解决返回主菜单时的内存泄漏和重复加载)
+// =========================================================================
+void mainwindow::transitionToGame() {
+    zombieHandMovie->stop(); zombieHandLabel->hide(); menuBgLabel->hide();
+    btnAdventure->hide(); btnMiniGames->hide(); btnPuzzle->hide(); btnPlay->hide();
 
     gameView->show();
     gameView->lower();
     gameView->centerOn(500, 300);
 
-    for (int i = 0; i < 5; ++i) {
-        gameScene->addItem(lawnMowers[i]);
-        lawnMowers[i]->setPos(130, 100 + i * 85);
-        lawnMowers[i]->setZValue(800);
-    }
+    // ✅ 数据初始化
+    sunCount = 150;
+    spawnedZombies = 0;
+    killedZombies = 0;
+    isGameEnding = false;
+    isPaused = false;
+    for (int i = 0; i < 5; ++i) { for (int j = 0; j < 9; ++j) { grassGrid[i][j] = 0; } }
 
-    auto shopProxy = gameScene->addWidget(shopBoard);
-    shopProxy->setPos(120, 0);
-    shopProxy->setZValue(1000);
-    shopBoard->show();
+    if (!isGameInitialized) {
+        isGameInitialized = true;
 
-    // 👇 【恢复】：作为独立的代理控件加入游戏场景，紧贴在商店栏右侧
-    auto shovelProxy = gameScene->addWidget(shovelBankBtn);
-    shovelProxy->setPos(645, 0);
-    shovelProxy->setZValue(1000);
-    shovelBankBtn->show();
-
-    for (int i = 0; i < 5; ++i) {
-        for (int j = 0; j < 9; ++j) {
-            grassGrid[i][j] = 0;
+        for (int i = 0; i < 5; ++i) {
+            lawnMowers[i] = new LawnMower(i);
+            gameScene->addItem(lawnMowers[i]);
+            lawnMowers[i]->setPos(130, 100 + i * 85);
+            lawnMowers[i]->setZValue(800);
         }
+
+        shopBoard = new QLabel();
+        shopBoard->setPixmap(QPixmap(":/res/images/Shop.png").scaled(520, 90, Qt::IgnoreAspectRatio));
+        shopBoard->setGeometry(0, 0, 520, 90);
+
+        sunLabel = new QLabel(shopBoard);
+        sunLabel->setGeometry(15, 62, 55, 20);
+        sunLabel->setAlignment(Qt::AlignCenter);
+        sunLabel->setStyleSheet("QLabel { color: black; font-size: 16px; font-weight: bold; background: transparent; }");
+
+        auto createCard = [this](int x, const QString& iconPath, const QString& costText, QPushButton*& btn, QLabel*& mask) {
+            btn = new QPushButton(shopBoard);
+            btn->setGeometry(x, 8, 50, 70);
+            btn->setStyleSheet("QPushButton { border-image: url(:/res/images/Card.png); border: none; background: transparent; }");
+            btn->setIcon(QIcon(iconPath));
+            btn->setIconSize(QSize(40, 40));
+            QLabel* costLbl = new QLabel(costText, btn);
+            costLbl->setGeometry(5, 52, 30, 15);
+            costLbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            costLbl->setStyleSheet("color: black; font-size: 12px; font-weight: bold; background: transparent;");
+            mask = new QLabel(btn);
+            mask->setStyleSheet("background-color: rgba(0, 0, 0, 160);");
+            mask->setGeometry(0, 0, 50, 70);
+            mask->hide();
+            };
+
+        createCard(82, ":/res/images/SunFlower.png", "50", sunCardBtn, sunCardMask);
+        createCard(135, ":/res/images/Peashooter.png", "100", peaCardBtn, peaCardMask);
+        createCard(188, ":/res/images/WallNut.png", "50", wallnutCardBtn, wallnutCardMask);
+        createCard(241, ":/res/images/CherryBomb.png", "150", cherryCardBtn, cherryCardMask);
+        createCard(294, ":/res/images/Repeater.png", "200", repeaterCardBtn, repeaterCardMask);
+
+        connect(sunCardBtn, &QPushButton::clicked, [this]() { tryBuyCard(50, HoldingSunflower, ":/res/images/SunFlower.png"); });
+        connect(peaCardBtn, &QPushButton::clicked, [this]() { tryBuyCard(100, HoldingPeashooter, ":/res/images/Peashooter.png"); });
+        connect(wallnutCardBtn, &QPushButton::clicked, [this]() { tryBuyCard(50, HoldingWallNut, ":/res/images/WallNut.png"); });
+        connect(cherryCardBtn, &QPushButton::clicked, [this]() { tryBuyCard(150, HoldingCherry, ":/res/images/CherryBomb.png"); });
+        connect(repeaterCardBtn, &QPushButton::clicked, [this]() { tryBuyCard(200, HoldingRepeater, ":/res/images/Repeater.png"); });
+
+        shovelBankBtn = new QPushButton();
+        shovelBankBtn->setGeometry(0, 0, 70, 72);
+        shovelBankBtn->setStyleSheet("QPushButton { border-image: url(:/res/images/ShovelBank.png); border: none; background: transparent; }");
+        shovelBankBtn->setIcon(QIcon(":/res/images/Shovel.png"));
+        shovelBankBtn->setIconSize(QSize(50, 50));
+        connect(shovelBankBtn, &QPushButton::clicked, [this]() {
+            currentMouseState = HoldingShovel;
+            gameView->viewport()->setCursor(QCursor(QPixmap(":/res/images/Shovel.png").scaled(50, 50)));
+            });
+
+        gameScene->addWidget(shopBoard)->setPos(120, 0);
+        gameScene->addWidget(shovelBankBtn)->setPos(645, 0);
+
+        menuButton = new QPushButton(gameView);
+        menuButton->setGeometry(870, 5, 120, 35);
+        menuButton->setStyleSheet("QPushButton { border-image: url(:/res/images/Button.png); background-color: transparent; }");
+        menuButton->setIcon(QIcon(":/res/images/SelectorScreen_Options1.png"));
+        menuButton->setIconSize(QSize(90, 25));
+        menuButton->show();
+        connect(menuButton, &QPushButton::clicked, this, &mainwindow::togglePause);
+
+        waveProgressBar = new ProgressBar(gameView);
+        waveProgressBar->move(780, 575);
+        waveProgressBar->show();
+
+        daveItem = new QGraphicsPixmapItem();
+        daveItem->setPos(-50, 70);
+        daveItem->setZValue(2000);
+        gameScene->addItem(daveItem);
+
+        daveMovie = new QMovie(this);
+        connect(daveMovie, &QMovie::frameChanged, [this]() {
+            if (daveItem && daveMovie->isValid()) {
+                QPixmap scaledPix = daveMovie->currentPixmap().scaledToWidth(350, Qt::SmoothTransformation);
+                daveItem->setPixmap(scaledPix);
+            }
+            });
+
+        bubbleItem = new QGraphicsPixmapItem(QPixmap(":/res/images/Store_SpeechBubble2.png").scaled(300, 180, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+        bubbleItem->setPos(260, 20);
+        bubbleItem->setZValue(2000);
+        gameScene->addItem(bubbleItem);
+
+        daveTextItem = new QGraphicsTextItem(bubbleItem);
+        daveTextItem->setPos(40, 25);
+        daveTextItem->setTextWidth(220);
+        daveTextItem->setFont(QFont("Microsoft YaHei", 14, QFont::Bold));
+        daveTextItem->setDefaultTextColor(Qt::black);
     }
 
-    QTimer* skySunTimer = new QTimer(this);
-    connect(skySunTimer, &QTimer::timeout, [this]() {
-        int randX = QRandomGenerator::global()->bounded(250, 1000);
-        int targetY = QRandomGenerator::global()->bounded(200, 500);
-
-        Sun* skySun = new Sun();
-        connect(skySun, &Sun::collected, this, &mainwindow::addSun);
-
-        gameScene->addItem(skySun);
-        skySun->setZValue(100);
-        skySun->startFall(randX, targetY);
-        });
-    skySunTimer->start(8000);
+    // UI 数据重置刷新
+    sunLabel->setText(QString::number(sunCount));
+    waveProgressBar->setProgress(0, totalZombies);
+    daveItem->hide();
+    bubbleItem->hide();
 
     bgm->stop();
     bgm->setSource(QUrl("qrc:/res/sound/Daytime.wav"));
     bgm->setVolume(0.5f);
-    bgm->play();
 
-    zombieSpawnTimer = new QTimer(this);
+    if (!skySunTimer) skySunTimer = new QTimer(this);
+    disconnect(skySunTimer, nullptr, nullptr, nullptr); // 防重复挂载
+    connect(skySunTimer, &QTimer::timeout, [this]() {
+        int randX = QRandomGenerator::global()->bounded(250, 1000);
+        int targetY = QRandomGenerator::global()->bounded(200, 500);
+        Sun* skySun = new Sun();
+        connect(skySun, &Sun::collected, this, &mainwindow::addSun);
+        gameScene->addItem(skySun);
+        skySun->setZValue(100);
+        skySun->startFall(randX, targetY);
+        });
+
+    if (!zombieSpawnTimer) zombieSpawnTimer = new QTimer(this);
+    disconnect(zombieSpawnTimer, nullptr, nullptr, nullptr);
     connect(zombieSpawnTimer, &QTimer::timeout, [this]() {
-        int randRow = QRandomGenerator::global()->bounded(0, 5);
+        if (spawnedZombies >= totalZombies) return;
 
-        Zombie* zombie = new Zombie(randRow);
+        int randRow = QRandomGenerator::global()->bounded(0, 5);
+        int randType = QRandomGenerator::global()->bounded(100);
+        Zombie::ZombieType zType = Zombie::NormalZombie;
+        if (randType < 20) zType = Zombie::ConeheadZombie;
+        else if (randType < 35) zType = Zombie::BucketheadZombie;
+
+        Zombie* zombie = new Zombie(randRow, zType);
         gameScene->addItem(zombie);
         connect(zombie, &Zombie::gameLost, this, &mainwindow::gameOver);
 
@@ -467,166 +375,298 @@ void mainwindow::transitionToGame()
         int placeY = startY + randRow * cellH - 25;
 
         zombie->setPos(placeX, placeY);
-        zombie->setZValue(60);
+        zombie->setZValue(randRow * 100 + 60);
+
+        spawnedZombies++;
         });
-    zombieSpawnTimer->start(3000);
+
+    if (!progressTimer) progressTimer = new QTimer(this);
+    disconnect(progressTimer, nullptr, nullptr, nullptr);
+    connect(progressTimer, &QTimer::timeout, this, &mainwindow::updateProgress);
+
+    isDaveTalking = true;
+    daveStep = 0;
+    advanceDaveStateMachine();
 }
 
-// =========================================================
-// 🎯 【核心操作层：鼠标事件拦截与种植/铲除逻辑】
-// =========================================================
+// =========================================================================
+// 🎬 严密的戴夫 5 阶段状态机，解决进场卡死和音频丢失
+// =========================================================================
+void mainwindow::advanceDaveStateMachine() {
+    if (!isDaveTalking) return;
+
+    if (daveItem && !daveItem->isVisible()) daveItem->show();
+    if (daveSound->isPlaying()) daveSound->stop();
+    if (daveMovie->isValid()) daveMovie->stop();
+
+    daveStep++;
+
+    if (daveStep == 1) {
+        daveMovie->setFileName(":/res/images/other/CrazyDave/enter.gif");
+        daveMovie->start();
+        QTimer::singleShot(1000, this, [this]() { if (isDaveTalking && daveStep == 1) advanceDaveStateMachine(); });
+    }
+    else if (daveStep == 2) {
+        showDaveDialog("邻居，好久不见！那些不长脑子的家伙又要来了！");
+        daveMovie->setFileName(":/res/images/other/CrazyDave/smalltalk.gif");
+        daveMovie->start();
+        daveSound->setSource(QUrl("qrc:/res/sound/crazydavelong1.wav"));
+        daveSound->play();
+    }
+    else if (daveStep == 3) {
+        showDaveDialog("听说他们这次戴了路障和铁桶，装备非常精良！");
+        daveMovie->setFileName(":/res/images/other/CrazyDave/blahblah.gif");
+        daveMovie->start();
+        daveSound->setSource(QUrl("qrc:/res/sound/crazydaveextralong1.wav"));
+        daveSound->play();
+    }
+    else if (daveStep == 4) {
+        showDaveDialog("你得保护好我的房子！准备好了吗？Wabi Wabbo!");
+        daveMovie->setFileName(":/res/images/other/CrazyDave/crazy.gif");
+        daveMovie->start();
+        daveSound->setSource(QUrl("qrc:/res/sound/crazydavecrazy.wav"));
+        daveSound->play();
+    }
+    else if (daveStep >= 5) {
+        hideDaveDialog();
+        daveMovie->setFileName(":/res/images/other/CrazyDave/leave.gif");
+        daveMovie->start();
+
+        QTimer::singleShot(1500, this, [this]() {
+            daveItem->hide();
+            isDaveTalking = false;
+            startReadySetPlant();
+            });
+    }
+}
+
+void mainwindow::showDaveDialog(const QString& text) {
+    if (bubbleItem && !bubbleItem->isVisible()) bubbleItem->show();
+    if (daveTextItem) daveTextItem->setPlainText(text);
+}
+
+void mainwindow::hideDaveDialog() {
+    if (bubbleItem) bubbleItem->hide();
+}
+
+// =========================================================================
+// 🚀 修复：超清无边界的透明 Ready-Set-Plant
+// =========================================================================
+void mainwindow::startReadySetPlant() {
+    QSoundEffect* rspSound = new QSoundEffect(this);
+    rspSound->setSource(QUrl("qrc:/res/sound/readysetplant.wav"));
+    rspSound->setVolume(0.8f);
+    rspSound->play();
+
+    QGraphicsPixmapItem* rspItem = new QGraphicsPixmapItem();
+    rspItem->setPos(300, 200);
+    rspItem->setZValue(2000);
+    gameScene->addItem(rspItem);
+
+    rspItem->setPixmap(QPixmap(":/res/images/StartReady.png").scaled(400, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+
+    QTimer::singleShot(600, this, [=]() {
+        rspItem->setPixmap(QPixmap(":/res/images/StartSet.png").scaled(400, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        });
+
+    QTimer::singleShot(1200, this, [=]() {
+        rspItem->setPixmap(QPixmap(":/res/images/StartPlant.png").scaled(400, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        });
+
+    QTimer::singleShot(1800, this, [=]() {
+        delete rspItem;
+        rspSound->deleteLater();
+
+        if (bgm) bgm->play();
+        if (skySunTimer) skySunTimer->start(8000);
+        if (zombieSpawnTimer) zombieSpawnTimer->start(4500);
+        if (progressTimer) progressTimer->start(500);
+        });
+}
+
+// ====================================================================================
+// ✅ 原汁原味的精准网格放置拦截体系 (100% 像素级回滚)
+// ====================================================================================
 bool mainwindow::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == gameView->viewport() && event->type() == QEvent::MouseButtonPress) {
         QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
 
-        if (mouseEvent->button() == Qt::LeftButton) {
-            if (currentMouseState != None) {
-                QPointF scenePos = gameView->mapToScene(mouseEvent->pos());
+        if (isDaveTalking && mouseEvent->button() == Qt::LeftButton) {
+            advanceDaveStateMachine();
+            return true;
+        }
 
-                int col = (scenePos.x() - 250) / 80;
-                int row = (scenePos.y() - 85) / 95;
+        if (isPaused || isGameEnding) return true;
 
-                // =========================================================
-                // 1. 如果点击的是有效空地 (值为0)，进行种植逻辑
-                // =========================================================
-                if (row >= 0 && row < 5 && col >= 0 && col < 9 && grassGrid[row][col] == 0) {
+        if (mouseEvent->button() == Qt::LeftButton && currentMouseState != None) {
+            QPointF scenePos = gameView->mapToScene(mouseEvent->pos());
+            int col = (scenePos.x() - 250) / 80;
+            int row = (scenePos.y() - 85) / 95;
 
-                    // 防呆设计：如果拿着铲子点空地，直接取消铲子状态
-                    if (currentMouseState == HoldingShovel) {
-                        currentMouseState = None;
-                        gameView->viewport()->setCursor(Qt::ArrowCursor);
-                        return true;
-                    }
+            if (row >= 0 && row < 5 && col >= 0 && col < 9 && (grassGrid[row][col] == 0 || currentMouseState == HoldingCherry)) {
 
-                    int placeX = 250 + col * 80 + 40;
-                    int placeY = 85 + row * 95 + 47;
-
-                    if (currentMouseState == HoldingSunflower) {
-                        Sunflower* sunPlant = new Sunflower(row, col);
-                        gameScene->addItem(sunPlant);
-                        sunPlant->setZValue(50);
-                        sunPlant->setPos(placeX, placeY);
-
-                        connect(sunPlant, &Sunflower::sunProduced, this, [this](Sun* sun) {
-                            gameScene->addItem(sun);
-                            sun->setZValue(100);
-                            connect(sun, &Sun::collected, this, &mainwindow::addSun);
-                            });
-
-                        sunCount -= 50;
-                        startCardCooldown(sunCardBtn, sunCardMask, 7500);
-                    }
-                    else if (currentMouseState == HoldingPeashooter) {
-                        PeaShooter* peaPlant = new PeaShooter(row, col);
-                        gameScene->addItem(peaPlant);
-                        peaPlant->setZValue(50);
-                        peaPlant->setPos(placeX, placeY);
-
-                        connect(peaPlant, &PeaShooter::bulletFired, this, [this](PeaBullet* bullet) {
-                            gameScene->addItem(bullet);
-                            bullet->setZValue(10);
-                            peaFireSound->play();
-                            });
-
-                        sunCount -= 100;
-                        startCardCooldown(peaCardBtn, peaCardMask, 7500);
-                    }
-                    else if (currentMouseState == HoldingWallNut) {
-                        WallNut* wallnutPlant = new WallNut(row, col);
-                        gameScene->addItem(wallnutPlant);
-                        wallnutPlant->setZValue(50);
-                        wallnutPlant->setPos(placeX, placeY);
-
-                        sunCount -= 50;
-                        startCardCooldown(wallnutCardBtn, wallnutCardMask, 30000);
-                    }
-
-                    // 更新网格状态并播放种地音效
-                    sunLabel->setText(QString::number(sunCount));
-                    grassGrid[row][col] = 1;
-
-                    QSoundEffect* tmpPlantSound = new QSoundEffect();
-                    tmpPlantSound->setSource(QUrl("qrc:/res/sound/plant.wav"));
-                    tmpPlantSound->setVolume(0.8f);
-                    tmpPlantSound->play();
-                    connect(tmpPlantSound, &QSoundEffect::playingChanged, [tmpPlantSound]() {
-                        if (!tmpPlantSound->isPlaying()) tmpPlantSound->deleteLater();
-                        });
-
+                if (currentMouseState == HoldingShovel) {
                     currentMouseState = None;
                     gameView->viewport()->setCursor(Qt::ArrowCursor);
                     return true;
                 }
-                // =========================================================
-                // 2. 如果点击的是已被占用的格子 (值为1)，进行铲除逻辑
-                // =========================================================
-                else if (row >= 0 && row < 5 && col >= 0 && col < 9 && grassGrid[row][col] == 1) {
 
-                    if (currentMouseState == HoldingShovel) {
-                        int placeX = 250 + col * 80 + 40;
-                        int placeY = 85 + row * 95 + 47;
-                        QPointF checkPos(placeX, placeY);
+                int placeX = 250 + col * 80 + 40;
+                int placeY = 85 + row * 95 + 47;
 
-                        // 🔍 扫描该坐标中心点包含的所有图形项
-                        QList<QGraphicsItem*> itemsAtClick = gameScene->items(checkPos);
-                        for (QGraphicsItem* item : itemsAtClick) {
-                            Plant* targetPlant = dynamic_cast<Plant*>(item);
-                            if (targetPlant) {
-                                targetPlant->die(); // 销毁植物
-                                grassGrid[row][col] = 0; // 释放网格占用
-                                qDebug() << "【战术系统】成功铲除 第" << row << "行 第" << col << "列的植物！";
+                Plant* newPlant = nullptr;
+                int cost = 0;
 
-                                QSoundEffect* digSound = new QSoundEffect();
-                                digSound->setSource(QUrl("qrc:/res/sound/plant.wav"));
-                                digSound->setVolume(0.8f);
-                                digSound->play();
-                                connect(digSound, &QSoundEffect::playingChanged, [digSound]() {
-                                    if (!digSound->isPlaying()) digSound->deleteLater();
-                                    });
-
-                                break;
-                            }
-                        }
-
-                        currentMouseState = None;
-                        gameView->viewport()->setCursor(Qt::ArrowCursor);
-                        return true;
-                    }
-                    else {
-                        // 拿着植物点到了有植物的地方
-                        qDebug() << "【战场系统】位置已被占用！种植取消。";
-                        currentMouseState = None;
-                        gameView->viewport()->setCursor(Qt::ArrowCursor);
-                    }
+                if (currentMouseState == HoldingSunflower) {
+                    newPlant = new Sunflower(row, col); cost = 50;
+                    connect(static_cast<Sunflower*>(newPlant), &Sunflower::sunProduced, this, [this](Sun* sun) {
+                        gameScene->addItem(sun); sun->setZValue(100);
+                        connect(sun, &Sun::collected, this, &mainwindow::addSun);
+                        });
                 }
-                // =========================================================
-                // 3. 异常点击拦截 (点出边界)
-                // =========================================================
+                else if (currentMouseState == HoldingPeashooter) {
+                    newPlant = new PeaShooter(row, col); cost = 100;
+                    connect(static_cast<PeaShooter*>(newPlant), &PeaShooter::bulletFired, this, [this](PeaBullet* bullet) {
+                        gameScene->addItem(bullet); bullet->setZValue(10); peaFireSound->play();
+                        });
+                }
+                else if (currentMouseState == HoldingWallNut) {
+                    newPlant = new WallNut(row, col); cost = 50;
+                }
+                else if (currentMouseState == HoldingRepeater) {
+                    newPlant = new Repeater(row, col); cost = 200;
+                    connect(static_cast<Repeater*>(newPlant), &Repeater::bulletFired, this, [this](PeaBullet* bullet) {
+                        gameScene->addItem(bullet); bullet->setZValue(10); peaFireSound->play();
+                        });
+                }
+                else if (currentMouseState == HoldingCherry) {
+                    newPlant = new CherryBomb(row, col); cost = 150;
+                }
+
+                if (newPlant && sunCount >= cost) {
+                    sunCount -= cost;
+                    sunLabel->setText(QString::number(sunCount));
+                    gameScene->addItem(newPlant);
+
+                    // 🌟 经典原版法则：通过 行号计算 Z-Value，完美遮挡防穿帮
+                    newPlant->setZValue(row * 100 + 50);
+                    newPlant->setPos(placeX, placeY);
+
+                    if (currentMouseState != HoldingCherry) grassGrid[row][col] = 1;
+
+                    if (currentMouseState == HoldingSunflower) startCardCooldown(sunCardBtn, sunCardMask, 7500);
+                    else if (currentMouseState == HoldingPeashooter) startCardCooldown(peaCardBtn, peaCardMask, 7500);
+                    else if (currentMouseState == HoldingWallNut) startCardCooldown(wallnutCardBtn, wallnutCardMask, 30000);
+                    else if (currentMouseState == HoldingCherry) startCardCooldown(cherryCardBtn, cherryCardMask, 30000);
+                    else if (currentMouseState == HoldingRepeater) startCardCooldown(repeaterCardBtn, repeaterCardMask, 7500);
+
+                    plantSound->play();
+                }
                 else {
-                    qDebug() << "【战场系统】位置非法或超出草坪边界！取消操作。";
-                    currentMouseState = None;
-                    gameView->viewport()->setCursor(Qt::ArrowCursor);
+                    delete newPlant;
+                    if (sunCount < cost) tryBuyCard(cost, currentMouseState, "");
                 }
+
+                currentMouseState = None;
+                gameView->viewport()->setCursor(Qt::ArrowCursor);
+                return true;
+            }
+            else if (row >= 0 && row < 5 && col >= 0 && col < 9 && grassGrid[row][col] == 1) {
+                if (currentMouseState == HoldingShovel) {
+                    int placeX = 250 + col * 80 + 40;
+                    int placeY = 85 + row * 95 + 47;
+                    QList<QGraphicsItem*> itemsAtClick = gameScene->items(QPointF(placeX, placeY));
+                    for (QGraphicsItem* item : itemsAtClick) {
+                        if (Plant* targetPlant = dynamic_cast<Plant*>(item)) {
+                            targetPlant->die();
+                            grassGrid[row][col] = 0;
+                            QSoundEffect* digSound = new QSoundEffect();
+                            digSound->setSource(QUrl("qrc:/res/sound/plant.wav"));
+                            digSound->setVolume(0.8f);
+                            digSound->play();
+                            connect(digSound, &QSoundEffect::playingChanged, [digSound]() { if (!digSound->isPlaying()) digSound->deleteLater(); });
+                            break;
+                        }
+                    }
+                }
+                currentMouseState = None;
+                gameView->viewport()->setCursor(Qt::ArrowCursor);
+                return true;
             }
         }
         else if (mouseEvent->button() == Qt::RightButton) {
-            if (currentMouseState != None) {
-                currentMouseState = None;
-                gameView->viewport()->setCursor(Qt::ArrowCursor);
-                qDebug() << "【商店/战术系统】右键取消手持状态！";
-            }
+            currentMouseState = None;
+            gameView->viewport()->setCursor(Qt::ArrowCursor);
         }
     }
     return QMainWindow::eventFilter(watched, event);
 }
 
-void mainwindow::addSun(int amount)
-{
-    sunCount += amount;
-    if (sunLabel) {
-        sunLabel->setText(QString::number(sunCount));
+void mainwindow::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_Space && !isDaveTalking && !isGameEnding) {
+        togglePause();
     }
+    QMainWindow::keyPressEvent(event);
+}
+
+// ====================================================================================
+// 🛑 核心修复：时空冻结控制（接管所有植物与子弹的内部动作）
+// ====================================================================================
+void mainwindow::togglePause() {
+    isPaused = !isPaused;
+
+    if (isPaused) {
+        if (zombieSpawnTimer && zombieSpawnTimer->isActive()) zombieSpawnTimer->stop();
+        if (skySunTimer && skySunTimer->isActive()) skySunTimer->stop();
+        if (progressTimer && progressTimer->isActive()) progressTimer->stop();
+        if (bgm && bgm->isPlaying()) bgm->setMuted(true);
+
+        for (QGraphicsItem* item : gameScene->items()) {
+            if (Zombie* z = dynamic_cast<Zombie*>(item)) {
+                z->pauseBehavior();
+            }
+            else if (Plant* p = dynamic_cast<Plant*>(item)) {
+                p->pauseBehavior(); // 完美暂停植物内部动图与发弹计时器
+            }
+            else if (QGraphicsObject* obj = dynamic_cast<QGraphicsObject*>(item)) {
+                for (QPropertyAnimation* anim : obj->findChildren<QPropertyAnimation*>()) {
+                    if (anim->state() == QAbstractAnimation::Running) anim->pause();
+                }
+                for (QMovie* m : obj->findChildren<QMovie*>()) m->setPaused(true);
+            }
+        }
+        pauseWidget->show();
+        pauseWidget->raise();
+    }
+    else {
+        if (zombieSpawnTimer && !zombieSpawnTimer->isActive()) zombieSpawnTimer->start(4500);
+        if (skySunTimer && !skySunTimer->isActive()) skySunTimer->start(8000);
+        if (progressTimer && !progressTimer->isActive()) progressTimer->start(500);
+        if (bgm) bgm->setMuted(false);
+
+        for (QGraphicsItem* item : gameScene->items()) {
+            if (Zombie* z = dynamic_cast<Zombie*>(item)) {
+                z->resumeBehavior();
+            }
+            else if (Plant* p = dynamic_cast<Plant*>(item)) {
+                p->resumeBehavior();
+            }
+            else if (QGraphicsObject* obj = dynamic_cast<QGraphicsObject*>(item)) {
+                for (QPropertyAnimation* anim : obj->findChildren<QPropertyAnimation*>()) {
+                    if (anim->state() == QAbstractAnimation::Paused) anim->resume();
+                }
+                for (QMovie* m : obj->findChildren<QMovie*>()) m->setPaused(false);
+            }
+        }
+        pauseWidget->hide();
+    }
+}
+
+void mainwindow::addSun(int amount) {
+    sunCount += amount;
+    if (sunLabel) sunLabel->setText(QString::number(sunCount));
+
     QSoundEffect* sunSound = new QSoundEffect();
     sunSound->setSource(QUrl("qrc:/res/sound/points.wav"));
     sunSound->setVolume(0.8f);
@@ -636,81 +676,62 @@ void mainwindow::addSun(int amount)
         });
 }
 
-void mainwindow::tryBuyCard(int cost, MouseState state, const QString& cursorImgPath)
-{
+void mainwindow::tryBuyCard(int cost, MouseState state, const QString& cursorImgPath) {
     if (sunCount >= cost) {
         currentMouseState = state;
         gameView->viewport()->setCursor(QCursor(QPixmap(cursorImgPath).scaled(50, 50)));
-        qDebug() << "【商店系统】成功拿起植物，准备种植！";
     }
     else {
-        qDebug() << "【经济系统】阳光不足！需要：" << cost << " 当前只有：" << sunCount;
         QSoundEffect* errorSound = new QSoundEffect(this);
         errorSound->setSource(QUrl("qrc:/res/sound/buzzer.wav"));
         errorSound->setVolume(0.8f);
         errorSound->play();
-
         connect(errorSound, &QSoundEffect::playingChanged, [errorSound]() {
             if (!errorSound->isPlaying()) errorSound->deleteLater();
             });
     }
 }
 
-void mainwindow::startCardCooldown(QPushButton* btn, QLabel* mask, int durationMs)
-{
+void mainwindow::startCardCooldown(QPushButton* btn, QLabel* mask, int durationMs) {
     btn->setEnabled(false);
     mask->show();
-
     QPropertyAnimation* cdAnim = new QPropertyAnimation(mask, "geometry");
     cdAnim->setDuration(durationMs);
-
     cdAnim->setStartValue(QRect(0, 0, btn->width(), btn->height()));
     cdAnim->setEndValue(QRect(0, btn->height(), btn->width(), 0));
-
     connect(cdAnim, &QPropertyAnimation::finished, [btn, mask, cdAnim]() {
         mask->hide();
         btn->setEnabled(true);
         cdAnim->deleteLater();
         });
-
     cdAnim->start();
 }
 
-// =========================================================
-// ☠️ 战败清算：僵尸进屋，游戏结束！
-// =========================================================
-void mainwindow::gameOver(QGraphicsObject* winnerZombie)
-{
+void mainwindow::gameOver(QGraphicsObject* winnerZombie) {
     if (isGameEnding) return;
     isGameEnding = true;
 
-    if (zombieSpawnTimer && zombieSpawnTimer->isActive()) {
-        zombieSpawnTimer->stop();
-    }
-
+    if (zombieSpawnTimer) zombieSpawnTimer->stop();
+    if (skySunTimer) skySunTimer->stop();
+    if (progressTimer) progressTimer->stop();
     if (bgm) bgm->stop();
 
-    QList<QGraphicsItem*> allItems = gameScene->items();
-    for (QGraphicsItem* item : allItems) {
-        Zombie* nz = dynamic_cast<Zombie*>(item);
-        if (nz) {
+    for (QGraphicsItem* item : gameScene->items()) {
+        if (Zombie* nz = dynamic_cast<Zombie*>(item)) {
             if (nz == winnerZombie) continue;
             nz->pauseBehavior();
-            continue;
         }
-
-        QGraphicsObject* gObj = dynamic_cast<QGraphicsObject*>(item);
-        if (gObj) {
-            for (QObject* child : gObj->children()) {
-                QTimer* childTimer = qobject_cast<QTimer*>(child);
-                if (childTimer) {
-                    childTimer->stop();
-                }
+        else if (Plant* p = dynamic_cast<Plant*>(item)) {
+            p->pauseBehavior();
+        }
+        else if (QGraphicsObject* gObj = dynamic_cast<QGraphicsObject*>(item)) {
+            for (QPropertyAnimation* anim : gObj->findChildren<QPropertyAnimation*>()) {
+                if (anim->state() == QAbstractAnimation::Running) anim->pause();
             }
+            for (QMovie* m : gObj->findChildren<QMovie*>()) m->setPaused(true);
         }
     }
 
-    // 播放最新的战败音效
     QSoundEffect* loseSound = new QSoundEffect(this);
     loseSound->setSource(QUrl("qrc:/res/sound/failure.wav"));
     loseSound->setVolume(1.0f);
@@ -718,4 +739,159 @@ void mainwindow::gameOver(QGraphicsObject* winnerZombie)
 
     gameOverLabel->raise();
     gameOverLabel->show();
+}
+
+// =========================================================================
+// ✅ 核心重构：完美清理与返回主菜单逻辑，杜绝资源泄漏
+// =========================================================================
+void mainwindow::returnToMainMenu() {
+    if (zombieSpawnTimer) zombieSpawnTimer->stop();
+    if (skySunTimer) skySunTimer->stop();
+    if (progressTimer) progressTimer->stop();
+    if (bgm) bgm->stop();
+
+    isGameEnding = false;
+    isPaused = false;
+    if (pauseWidget) pauseWidget->hide();
+    gameView->hide();
+
+    // 只清理动态战斗实体，绝对不能 clear() 整个 Scene，否则 UI 全挂！
+    for (QGraphicsItem* item : gameScene->items()) {
+        if (dynamic_cast<Zombie*>(item) || dynamic_cast<Plant*>(item) ||
+            dynamic_cast<Sun*>(item) || dynamic_cast<PeaBullet*>(item)) {
+            delete item;
+        }
+    }
+
+    btnAdventure->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+    menuBgLabel->show();
+    btnAdventure->show();
+    btnMiniGames->show();
+    btnPuzzle->show();
+    btnPlay->show();
+}
+void mainwindow::restartGame() {}
+
+// =========================================================================
+// 🏆 进度条与战役结算系统 (原汁原味的奖杯掉落！)
+// =========================================================================
+void mainwindow::updateProgress() {
+    int currentZombiesInScene = 0;
+    for (auto item : gameScene->items()) {
+        if (dynamic_cast<Zombie*>(item)) currentZombiesInScene++;
+    }
+    killedZombies = spawnedZombies - currentZombiesInScene;
+    if (waveProgressBar) waveProgressBar->setProgress(killedZombies, totalZombies);
+
+    // 🏆 判断通关条件：僵尸全部刷新完，且场上已经没有存活的僵尸
+    if (spawnedZombies >= totalZombies && currentZombiesInScene == 0 && !isGameEnding) {
+        gameWon();
+    }
+}
+
+void mainwindow::gameWon() {
+    isGameEnding = true;
+    if (zombieSpawnTimer) zombieSpawnTimer->stop();
+    if (skySunTimer) skySunTimer->stop();
+    if (progressTimer) progressTimer->stop();
+
+    // 冻结全场植物，停止开火
+    for (QGraphicsItem* item : gameScene->items()) {
+        if (Plant* p = dynamic_cast<Plant*>(item)) {
+            p->pauseBehavior();
+        }
+    }
+
+    // 🏆 奖杯降临
+    QPushButton* trophyBtn = new QPushButton();
+    trophyBtn->setIcon(QIcon(":/res/images/trophy.png"));
+    trophyBtn->setIconSize(QSize(80, 80));
+    trophyBtn->setStyleSheet("background: transparent; border: none;");
+
+    QGraphicsProxyWidget* trophyProxy = gameScene->addWidget(trophyBtn);
+    trophyProxy->setPos(500, 0);
+    trophyProxy->setZValue(9999);
+
+    QPropertyAnimation* dropAnim = new QPropertyAnimation(trophyProxy, "pos");
+    dropAnim->setStartValue(QPointF(500, 0));
+    dropAnim->setEndValue(QPointF(500, 300));
+    dropAnim->setEasingCurve(QEasingCurve::OutBounce);
+    dropAnim->setDuration(1500);
+    dropAnim->start(QAbstractAnimation::DeleteWhenStopped);
+
+    connect(trophyBtn, &QPushButton::clicked, this, [=]() {
+        trophyBtn->setEnabled(false); // 拿了奖杯就不许再点了！
+        if (bgm) bgm->stop();
+
+        QSoundEffect* winSound = new QSoundEffect(this);
+        winSound->setSource(QUrl("qrc:/res/sound/winmusic.wav"));
+        winSound->setVolume(1.0f);
+        winSound->play();
+
+        // 放大两倍半
+        QPropertyAnimation* scaleAnim = new QPropertyAnimation(trophyProxy, "scale");
+        scaleAnim->setStartValue(1.0);
+        scaleAnim->setEndValue(2.5);
+        scaleAnim->setDuration(2000);
+        scaleAnim->start(QAbstractAnimation::DeleteWhenStopped);
+
+        // 缓缓平移到屏幕真正中心
+        QPropertyAnimation* moveAnim = new QPropertyAnimation(trophyProxy, "pos");
+        moveAnim->setStartValue(trophyProxy->pos());
+        moveAnim->setEndValue(QPointF(380, 180));
+        moveAnim->setDuration(2000);
+        moveAnim->start(QAbstractAnimation::DeleteWhenStopped);
+
+        // 🌟 圣光降临：白屏淡出
+        QWidget* whiteScreen = new QWidget(gameView);
+        whiteScreen->setGeometry(0, 0, 1000, 600);
+        whiteScreen->setStyleSheet("background-color: white;");
+        whiteScreen->show();
+
+        QGraphicsOpacityEffect* eff = new QGraphicsOpacityEffect();
+        eff->setOpacity(0.0);
+        whiteScreen->setGraphicsEffect(eff);
+
+        QPropertyAnimation* fadeAnim = new QPropertyAnimation(eff, "opacity");
+        fadeAnim->setStartValue(0.0);
+        fadeAnim->setEndValue(1.0);
+        fadeAnim->setDuration(4000);
+
+        connect(fadeAnim, &QPropertyAnimation::finished, this, [=]() {
+            trophyProxy->deleteLater();
+            whiteScreen->deleteLater();
+            showVictoryScreen();
+            });
+        fadeAnim->start(QAbstractAnimation::DeleteWhenStopped);
+        });
+}
+
+void mainwindow::showVictoryScreen() {
+    QWidget* victoryWidget = new QWidget(gameView);
+    victoryWidget->setGeometry(0, 0, 1000, 600);
+
+    QLabel* bg = new QLabel(victoryWidget);
+    bg->setPixmap(QPixmap(":/res/images/Challenge_Background.jpg").scaled(1000, 600, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+    bg->setGeometry(0, 0, 1000, 600);
+
+    // ✅ 新增：告别文本
+    QLabel* textLabel = new QLabel(victoryWidget);
+    textLabel->setText("我们的小组大作业到此不那么圆满的展示结束了，感谢每一位成员的辛苦付出。");
+    textLabel->setStyleSheet("color: white; font-size: 24px; font-weight: bold; background: transparent; font-family: 'Microsoft YaHei';");
+    textLabel->setAlignment(Qt::AlignCenter);
+    textLabel->setWordWrap(true);
+    textLabel->setGeometry(100, 200, 800, 100);
+
+    QPushButton* closeBtn = new QPushButton(victoryWidget);
+    closeBtn->setGeometry(870, 15, 100, 45);
+    closeBtn->setStyleSheet(
+        "QPushButton { border-image: url(:/res/images/Almanac_CloseButton.png); } "
+        "QPushButton:hover { border-image: url(:/res/images/Almanac_CloseButtonHighlight.png); }"
+    );
+    connect(closeBtn, &QPushButton::clicked, this, [=]() {
+        victoryWidget->deleteLater();
+        returnToMainMenu();
+        });
+
+    victoryWidget->show();
 }

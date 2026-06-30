@@ -119,5 +119,55 @@
         <file>images/other/LawnMower/tricked.gif</file>
         <file>sound/failure.wav</file>
         <file>images/other/Zombie_hand/Zombie_hand.gif</file>
+        <file>images/other/CrazyDave/blahblah.gif</file>
+        <file>images/other/CrazyDave/crazy.gif</file>
+        <file>images/other/CrazyDave/enter.gif</file>
+        <file>images/other/CrazyDave/enter_handing.gif</file>
+        <file>images/other/CrazyDave/enterup.gif</file>
+        <file>images/other/CrazyDave/grab.gif</file>
+        <file>images/other/CrazyDave/idle.gif</file>
+        <file>images/other/CrazyDave/idle_handing.gif</file>
+        <file>images/other/CrazyDave/leave.gif</file>
+        <file>images/other/CrazyDave/mediumtalk.gif</file>
+        <file>images/other/CrazyDave/smalltalk.gif</file>
+        <file>images/other/CrazyDave/talk_handing.gif</file>
+        <file>sound/crazydavecrazy.wav</file>
+        <file>sound/crazydaveextralong1.wav</file>
+        <file>sound/crazydaveextralong2.wav</file>
+        <file>sound/crazydaveextralong3.wav</file>
+        <file>sound/crazydavelong1.wav</file>
+        <file>sound/crazydavelong2.wav</file>
+        <file>sound/crazydavelong3.wav</file>
+        <file>sound/crazydavescream.wav</file>
+        <file>sound/crazydavescream2.wav</file>
+        <file>sound/crazydaveshort1.wav</file>
+        <file>sound/crazydaveshort2.wav</file>
+        <file>sound/crazydaveshort3.wav</file>
+        <file>images/options_backtogamebutton0.png</file>
+        <file>images/options_backtogamebutton2.png</file>
+        <file>images/options_checkbox0.png</file>
+        <file>images/options_checkbox1.png</file>
+        <file>images/options_menuback.jpg</file>
+        <file>images/options_menuback_.png</file>
+        <file>images/Store_SpeechBubble.png</file>
+        <file>images/Store_SpeechBubble2.png</file>
+        <file>images/StartPlant.png</file>
+        <file>images/StartReady.png</file>
+        <file>images/StartSet.png</file>
+        <file>images/button_down_left.png</file>
+        <file>images/button_down_middle.png</file>
+        <file>images/button_down_right.png</file>
+        <file>images/button_left.png</file>
+        <file>images/FlagMeter.png</file>
+        <file>images/FlagMeterLevelProgress.png</file>
+        <file>images/FlagMeterParts.png</file>
+        <file>images/SelectorScreen_Options1.png</file>
+        <file>images/SelectorScreen_Options2.png</file>
+        <file>images/trophy.png</file>
+        <file>images/trophy_hi_res.png</file>
+        <file>sound/winmusic.wav</file>
+        <file>images/Almanac_CloseButton.png</file>
+        <file>images/Almanac_CloseButtonHighlight.png</file>
+        <file>images/Challenge_Background.jpg</file>
     </qresource>
 </RCC>
