@@ -6,22 +6,20 @@
 #include <QMovie>
 
 LawnMower::LawnMower(int r, QGraphicsItem* parent)
-    : QGraphicsObject(parent), row(r), isTriggered(false)
+    : QGraphicsObject(parent), row(r), isTriggered(false) // 初始状态为静止
 {
-    // =========================================================
-    // 🚗 【V8引擎装载】：加载待机动画 normal.gif
-    // =========================================================
     mowerMovie = new QMovie(":/res/images/other/LawnMower/normal.gif");
     mowerMovie->start();
 
-    // 绑定帧更新
+    // 绑定帧更新重绘
     connect(mowerMovie, &QMovie::frameChanged, this, [this]() {
         this->update();
         });
 
+    // 设置 30ms 轮询一次物理判定引擎
     driveTimer = new QTimer(this);
     connect(driveTimer, &QTimer::timeout, this, &LawnMower::updateLogic);
-    driveTimer->start(30); // 30ms 刷新一次物理判定
+    driveTimer->start(30);
 }
 
 LawnMower::~LawnMower()
@@ -32,30 +30,27 @@ LawnMower::~LawnMower()
     }
 }
 
-QRectF LawnMower::boundingRect() const
-{
+QRectF LawnMower::boundingRect() const {
     return QRectF(0, 0, 105, 105);
 }
 
-void LawnMower::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
-{
+void LawnMower::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) {
     if (mowerMovie && mowerMovie->isValid()) {
         QPixmap pix = mowerMovie->currentPixmap();
-        // 保持 105x105 的完美大小
         QPixmap scaledPix = pix.scaled(105, 105, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         painter->drawPixmap(0, 0, scaledPix);
     }
 }
 
+// 核心物理与逻辑更新引擎
 void LawnMower::updateLogic()
 {
-    // 1. 获取所有与小推车重叠的物体
+    // 1. 碰撞索敌
     QList<QGraphicsItem*> items = this->collidingItems();
     bool hitZombie = false;
 
     for (QGraphicsItem* item : items) {
         Zombie* zombie = dynamic_cast<Zombie*>(item);
-        // 如果碰到了僵尸，且在同一行
         if (zombie && zombie->getRow() == this->row) {
             hitZombie = true;
             // 造成毁天灭地的真实伤害，直接秒杀！
@@ -63,14 +58,12 @@ void LawnMower::updateLogic()
         }
     }
 
-    // 2. 如果还没启动，且碰到了僵尸，则点火启动！
+    // 2. 状态机切换：点火启动
     if (!isTriggered && hitZombie) {
-        isTriggered = true;
+        isTriggered = true; // 锁定状态，防止重复触发
         qDebug() << "【防线警报】第" << row << "行小推车启动！碾碎他们！";
 
-        // =========================================================
-        // 🔥 【形态切换】：变成炫酷的冲刺形态 tricked.gif！
-        // =========================================================
+        // 切换冲刺形态图
         mowerMovie->stop();
         mowerMovie->setFileName(":/res/images/other/LawnMower/tricked.gif");
         mowerMovie->start();
@@ -81,7 +74,7 @@ void LawnMower::updateLogic()
         // 向右以极快速度冲刺
         this->moveBy(25, 0);
 
-        // 冲出屏幕最右侧后，功成身退，销毁自己
+        // 越出屏幕边界后自我销毁释放内存
         if (this->pos().x() > 1400) {
             this->deleteLater();
         }

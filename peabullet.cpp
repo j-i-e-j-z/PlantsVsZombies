@@ -1,5 +1,5 @@
 ﻿#include "peabullet.h"
-#include "zombie.h"   // 引入僵尸头文件，让子弹能认识它
+#include "zombie.h"   
 #include <QTimer>
 #include <QPainter>
 #include <QList>
@@ -9,48 +9,46 @@
 PeaBullet::PeaBullet(int r, QGraphicsItem* parent)
     : QGraphicsObject(parent), row(r)
 {
-    // 加载豌豆子弹图片，请确保你的资源库里有 Pea.png
     bulletImage = QPixmap(":/res/images/Pea.png");
 
     QTimer* flyTimer = new QTimer(this);
     connect(flyTimer, &QTimer::timeout, [this]() {
-        // 1. 每 30 毫秒往前飞 15 个像素
+        // 1. 每 30 毫秒往前飞 15 个像素（帧驱动）
         this->moveBy(15, 0);
 
-        // 2. 如果飞出屏幕外，自动销毁，释放内存
+        // 2. 🛡️ 【内存回收机制】：飞出屏幕外后，利用 deleteLater 安全释放内存，避免堆空间被无限撑爆
         if (this->pos().x() > 1050) {
             this->deleteLater();
             return;
         }
 
         // ==========================================================
-        // 💥 【核心大招：碰撞检测】
+        // 💥 碰撞检测核心逻辑
         // ==========================================================
-        // 获取当前和子弹发生碰撞的所有图形实体
-        // 获取当前和子弹发生碰撞的所有图形实体
+        // 遍历当前与子弹发生包围盒重叠的所有对象
         QList<QGraphicsItem*> items = this->collidingItems();
         for (QGraphicsItem* item : items) {
+            // 类型试探：如果是僵尸
             Zombie* zombie = dynamic_cast<Zombie*>(item);
 
+            // 行道判定：只有同一行的目标才会造成伤害
             if (zombie && zombie->getRow() == this->row) {
-                zombie->takeDamage(20);
+                zombie->takeDamage(20);  //-20blood
 
-                // =========================================================
-                // 🎵 【新增：子弹击中僵尸音效】
-                // =========================================================
-                QSoundEffect* splatSound = new QSoundEffect(); // 这里不要传 this，因为子弹马上要 deleteLater 了
-                splatSound->setSource(QUrl("qrc:/res/sound/PeaHit.wav")); // ⚠️ 检查你的击中音效文件名
+                // 🎵 播放动态分配的受击音效
+                QSoundEffect* splatSound = new QSoundEffect();
+                splatSound->setSource(QUrl("qrc:/res/sound/PeaHit.wav"));
                 splatSound->setVolume(0.6f);
                 splatSound->play();
 
-                // 播放完毕后自动回收音效内存
                 QObject::connect(splatSound, &QSoundEffect::playingChanged, [splatSound]() {
                     if (!splatSound->isPlaying()) {
                         splatSound->deleteLater();
                     }
                     });
 
-                this->deleteLater();    // 子弹销毁
+                // 击中目标后，子弹使命结束，销毁自身
+                this->deleteLater();
                 return;
             }
         }
@@ -58,19 +56,13 @@ PeaBullet::PeaBullet(int r, QGraphicsItem* parent)
     flyTimer->start(30);
 }
 
-// 析构函数
-PeaBullet::~PeaBullet()
-{
-}
+PeaBullet::~PeaBullet() {}
 
-// 物理碰撞边界 (宽高24左右，契合豌豆的大小)
-QRectF PeaBullet::boundingRect() const
-{
+// 物理碰撞边界锁定为 24x24 像素的豌豆本体
+QRectF PeaBullet::boundingRect() const {
     return QRectF(0, 0, 24, 24);
 }
 
-// 渲染画图逻辑
-void PeaBullet::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
-{
+void PeaBullet::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) {
     painter->drawPixmap(0, 0, 24, 24, bulletImage);
 }

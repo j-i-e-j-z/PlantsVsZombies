@@ -20,7 +20,6 @@ public:
     virtual void takeDamage(int damage);
     virtual void die();
 
-    // ✅ 新增：植物时空冻结机制
     virtual void pauseBehavior();
     virtual void resumeBehavior();
 
